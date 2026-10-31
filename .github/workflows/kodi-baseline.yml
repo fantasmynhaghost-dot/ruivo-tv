@@ -11,11 +11,11 @@ jobs:
     steps:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - uses: android-actions/setup-android@v3
       - name: Dependências do host
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake autopoint gettext libtool cmake ninja-build curl git gawk gperf nasm yasm zip unzip lzip zlib1g-dev libssl-dev libcurl4-openssl-dev default-jdk swig build-essential python3 flex bison
+          yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-34" "build-tools;33.0.1" "ndk;$NDK_VER"
           mkdir -p ~/.android && keytool -genkey -keystore ~/.android/debug.keystore -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keypass android -storepass android -keyalg RSA -keysize 2048 -validity 10000 || true
       - name: Fonte do Kodi
