@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ruivotv.example/schema/repository-index-v1.json",
+  "title": "RuivoTV Add-on Repository Index v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "name", "items"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "description": { "type": "string", "maxLength": 500 },
+    "items": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "version"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "version": { "type": "string", "pattern": "^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$" },
+          "developer": { "type": "string", "maxLength": 80 },
+          "description": { "type": "string", "maxLength": 500 },
+          "category": { "type": "string", "maxLength": 48 },
+          "releaseNotes": { "type": "string", "maxLength": 2000 },
+          "manifestUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+          "packageUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+          "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+        },
+        "oneOf": [
+          { "required": ["manifestUrl"], "not": { "anyOf": [ { "required": ["packageUrl"] }, { "required": ["sha256"] } ] } },
+          { "required": ["packageUrl", "sha256"], "not": { "required": ["manifestUrl"] } }
+        ]
+      }
+    }
+  }
+}

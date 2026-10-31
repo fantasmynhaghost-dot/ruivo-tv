@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "Ruivo",
+    "version": "1.0.0"
+  },
+  "features": {
+    "login": false,
+    "profiles": false,
+    "favoritesSync": false,
+    "parentalControl": false
+  },
+  "channels": []
+}

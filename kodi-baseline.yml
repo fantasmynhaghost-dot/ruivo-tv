@@ -1,0 +1,35 @@
+# Etapa 2: valida o build do Kodi 21.3-Omega SEM alterações (arm64-v8a). Não foi executado ainda.
+name: Kodi baseline (21.3-Omega, arm64-v8a)
+on: workflow_dispatch
+jobs:
+  kodi:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      NDK_VER: "21.4.7075529"
+      KODI_TAG: "21.3-Omega"
+    steps:
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      - name: Dependências do host
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autopoint gettext libtool cmake ninja-build curl git gawk gperf nasm yasm zip unzip lzip zlib1g-dev libssl-dev libcurl4-openssl-dev default-jdk swig build-essential python3 flex bison
+          sdkmanager "platforms;android-34" "build-tools;33.0.1" "ndk;$NDK_VER"
+          mkdir -p ~/.android && keytool -genkey -keystore ~/.android/debug.keystore -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keypass android -storepass android -keyalg RSA -keysize 2048 -validity 10000 || true
+      - name: Fonte do Kodi
+        run: git clone --depth 1 --branch "$KODI_TAG" https://github.com/xbmc/xbmc "$HOME/kodi"
+      - name: Dependências nativas
+        run: |
+          cd $HOME/kodi/tools/depends && ./bootstrap
+          ./configure --with-tarballs=$HOME/xbmc-tarballs --host=aarch64-linux-android \
+            --with-sdk-path=$ANDROID_HOME --with-ndk-path=$ANDROID_HOME/ndk/$NDK_VER --prefix=$HOME/xbmc-depends
+          make -j$(nproc)
+      - name: Kodi + APK
+        run: |
+          cd $HOME/kodi && mkdir -p $HOME/kodi-build
+          make -C tools/depends/target/cmakebuildsys BUILD_DIR=$HOME/kodi-build
+          cd $HOME/kodi-build && make -j$(nproc) && make apk
+      - uses: actions/upload-artifact@v4
+        with: { name: kodi-baseline-arm64, path: "~/kodi-build/**/*.apk" }

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "id": "ruivotv.demo.catalog",
+  "name": "RuivoTV — Demonstração",
+  "description": "Addon local de teste com canais, filmes e episódios totalmente fictícios. Os endereços de stream são deliberadamente inválidos e não fornecem conteúdo real.",
+  "version": "1.0.0",
+  "developer": "RuivoTV",
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  },
+  "allowedHosts": [
+    "example.org"
+  ],
+  "capabilities": [
+    "live",
+    "movies",
+    "series"
+  ],
+  "categories": [
+    "Demonstração",
+    "Ficção"
+  ],
+  "permissions": [
+    "catalog.read",
+    "stream.play"
+  ],
+  "releaseNotes": "Primeira versão demonstrativa; contém apenas dados fictícios.",
+  "catalog": {
+    "path": "package:catalog.json",
+    "itemsPath": "items",
+    "fields": {
+      "id": "id",
+      "name": "name",
+      "kind": "kind",
+      "url": "url",
+      "category": "category",
+      "number": "number",
+      "series": "series",
+      "season": "season",
+      "episode": "episode",
+      "duration": "duration",
+      "description": "description",
+      "year": "year",
+      "rating": "rating",
+      "schedule": "schedule"
+    }
+  }
+}

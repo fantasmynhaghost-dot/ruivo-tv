@@ -1,0 +1,81 @@
+{
+  "items": [
+    {
+      "id": "demo-news",
+      "name": "DEMO • Notícias de Mentirinha",
+      "kind": "live",
+      "category": "Demonstração",
+      "number": 901,
+      "url": "https://example.org/ruivotv-demo/nonexistent-news.m3u8",
+      "description": "Canal fictício para testar o cartão e a tela do player. Stream intencionalmente inexistente.",
+      "schedule": [
+        ["12:00", "Jornal Imaginário"],
+        ["13:00", "Previsão do Tempo Inventada"],
+        ["14:00", "Debate de Personagens"],
+        ["15:00", "Fim da programação demo"]
+      ]
+    },
+    {
+      "id": "demo-cinema",
+      "name": "DEMO • Cinema Imaginário",
+      "kind": "live",
+      "category": "Demonstração",
+      "number": 902,
+      "url": "https://example.org/ruivotv-demo/nonexistent-cinema.m3u8",
+      "description": "Canal de exemplo com endereço deliberadamente sem mídia.",
+      "schedule": [
+        ["12:00", "O Castelo de Papel"],
+        ["14:00", "A Cidade das Nuvens"],
+        ["16:00", "Fim da programação demo"]
+      ]
+    },
+    {
+      "id": "demo-movie-1",
+      "name": "DEMO • A Jornada do Pixel",
+      "kind": "movie",
+      "category": "Ficção",
+      "year": 2025,
+      "rating": "L",
+      "duration": 84,
+      "url": "https://example.org/ruivotv-demo/nonexistent-movie.mp4",
+      "description": "Filme fictício criado apenas para testar catálogo, sinopse, ano e player."
+    },
+    {
+      "id": "demo-movie-2",
+      "name": "DEMO • O Mistério do Controle Remoto",
+      "kind": "movie",
+      "category": "Ficção",
+      "year": 2024,
+      "rating": "L",
+      "duration": 72,
+      "url": "https://example.org/ruivotv-demo/nonexistent-movie-2.mp4",
+      "description": "Título inventado; não representa uma obra ou serviço real."
+    },
+    {
+      "id": "demo-ep-1",
+      "name": "DEMO • Episódio 1 — O Primeiro Clique",
+      "kind": "episode",
+      "category": "Ficção",
+      "series": "As Aventuras do RuivoTV Demo",
+      "season": 1,
+      "episode": 1,
+      "year": 2026,
+      "duration": 22,
+      "url": "https://example.org/ruivotv-demo/nonexistent-episode-1.mp4",
+      "description": "Episódio totalmente fictício para testar agrupamento por série e temporada."
+    },
+    {
+      "id": "demo-ep-2",
+      "name": "DEMO • Episódio 2 — O Catálogo Vazio",
+      "kind": "episode",
+      "category": "Ficção",
+      "series": "As Aventuras do RuivoTV Demo",
+      "season": 1,
+      "episode": 2,
+      "year": 2026,
+      "duration": 24,
+      "url": "https://example.org/ruivotv-demo/nonexistent-episode-2.mp4",
+      "description": "Segundo episódio fictício; o endereço de vídeo não entrega mídia."
+    }
+  ]
+}

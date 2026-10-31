@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "name": "Meu repositório RuivoTV",
+  "items": [
+    {
+      "id": "ruivotv.demo.catalog",
+      "name": "RuivoTV — Demonstração",
+      "version": "1.0.0",
+      "developer": "RuivoTV",
+      "description": "Dados totalmente fictícios e streams não funcionais para testar a Central de Addons.",
+      "category": "Demonstração",
+      "packageUrl": "https://SEU-DOMINIO.example/demo-addon.zip",
+      "sha256": "cd3cd700213bb5bdb24ab270af1ed21870d28efcb1c9480d52c3de61bc9f84ee"
+    }
+  ]
+}

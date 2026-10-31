@@ -1,0 +1,1742 @@
+<meta charset="utf-8">
+<script>
+/* diagnóstico: mostra na tela se o app não iniciar (WebView antigo, erro de script) */
+(function () {
+  window.__errs = [];
+  function show(why) {
+    if (window.__booted || document.getElementById('fatal')) return;
+    var d = document.createElement('div'); d.id = 'fatal';
+    d.setAttribute('style', 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:999;background:#0C0A0B;color:#FFF8F4;font:16px/1.5 sans-serif;padding:24px;overflow:auto');
+    var ua = (navigator.userAgent.match(/Chrome\/[\d.]+/) || ['WebView desconhecido'])[0];
+    d.innerHTML = '<h2 style="margin:0 0 12px;color:#FF8A3D">Ruivo TV não iniciou</h2><p>' + why + '</p><p style="color:#A39791">WebView: ' + ua + '</p><pre style="white-space:pre-wrap;color:#FF9AA6">' + window.__errs.join('\n') + '</pre><p style="color:#A39791">Se o WebView for inferior a 80, atualize o &quot;Android System WebView&quot; do aparelho.</p><button onclick="location.reload()" style="padding:12px 20px;font-size:16px;border:0;border-radius:10px;background:#D94A12;color:#fff">Tentar de novo</button>';
+    (document.body || document.documentElement).appendChild(d);
+  }
+  window.onerror = function (m, src, l, c) { window.__errs.push(m + ' (linha ' + l + ')'); setTimeout(function () { show('Ocorreu um erro de script.'); }, 300); };
+  setTimeout(function () { show('O app demorou demais para carregar.'); }, 9000);
+})();
+</script>
+<title>Ruivo TV</title>
+<link rel="icon" type="image/png" href="img/ruivo-tv-mark.png">
+<link rel="apple-touch-icon" href="img/ruivo-tv-mark.png">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="hls.min.js"></script>
+<script>window.Hls||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js"><\/script>')</script>
+<style>
+/* Layout: TV/desktop = menu lateral + conteúdo; celular/vertical = cabeçalho + barra inferior. Identidade: cobre #D94A12, âmbar #FF8A3D, vermelho #C8102E sobre preto quente #0C0A0B (paleta do personagem). Base 1080p = 20px. */
+:root {
+  --bg: #0C0A0B; --bg-2: #120E10; --surface: #181214; --surface-2: #221A1D; --line: rgba(214,180,165,.2);
+  --fg: #FBF6F3; --muted: #A39791; --primary: #D94A12; --cyan: #FF8A3D; --violet: #C8102E;
+  --grad: linear-gradient(135deg, #FF8A3D 0%, #D94A12 52%, #C8102E 100%);
+  --on-primary: #FFFFFF; --ring: #FFB066; --live: #FF4D5E; --chip: #221A1D; --chip-fg: #E4D8D2;
+  --hero-bg: #0C0A0B; --pl-fg: #FFFFFF; --pl-muted: rgba(255,255,255,.74); --pl-ctl: rgba(255,255,255,.16);
+  --f: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #FFF8F4; --bg-2: #F8EDE6; --surface: #FFFFFF; --surface-2: #FBF1EB; --line: rgba(12,10,11,.12);
+    --fg: #1A1214; --muted: #6E5F58; --ring: #D94A12; --chip: #FFFFFF; --chip-fg: #4A3A33;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #FFF8F4; --bg-2: #F8EDE6; --surface: #FFFFFF; --surface-2: #FBF1EB; --line: rgba(12,10,11,.12);
+  --fg: #1A1214; --muted: #6E5F58; --ring: #D94A12; --chip: #FFFFFF; --chip-fg: #4A3A33;
+  color-scheme: light;
+}
+html { font-size: clamp(13px, 1.0417vw, 42px); height: 100%; }
+body {
+  height: 100%; background: var(--bg); color: var(--fg); font: 500 1.05rem/1.4 var(--f);
+  padding-block: 0; overflow: hidden; -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+h1, h2, h3, p { margin: 0; }
+svg.i { width: 1.45rem; height: 1.45rem; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg.i.f { fill: currentColor; stroke: none; }
+[data-f]:focus { outline: none; }
+[data-f] { scroll-margin: 3rem; }
+
+/* marca */
+.logo-mark { display: block; width: 2.7rem; height: 2.7rem; flex: none; object-fit: contain; }
+.wm { font: 800 1.45rem/1 var(--f); letter-spacing: .01em; }
+.wm i { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand { display: flex; align-items: center; gap: .8rem; padding: .2rem .5rem 1.6rem; }
+.brand small { display: block; margin-top: .4rem; font: 500 .5rem/1 var(--f); letter-spacing: .2em; color: var(--muted); white-space: nowrap; }
+
+/* estrutura */
+.app { position: relative; height: 100%; display: grid; grid-template-columns: 16rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.mhead { display: none; }
+.side { display: flex; flex-direction: column; gap: .25rem; padding: 1.7rem 1rem; background: var(--bg-2); border: 1px solid var(--line); border-radius: 1.4rem; margin: .8rem 0 .8rem .6rem; min-width: 0; }
+.nav { display: flex; align-items: center; gap: .9rem; padding: .78rem 1rem; border-radius: .8rem; color: var(--muted); font-weight: 600; transition: background .15s, color .15s; }
+.nav:hover { color: var(--fg); }
+.nav.on { background: var(--primary); color: var(--on-primary); }
+.nav:focus { box-shadow: 0 0 0 .18rem var(--bg-2), 0 0 0 .38rem var(--ring); color: var(--fg); }
+.nav.on:focus { color: var(--on-primary); }
+.clock { margin-top: auto; padding: 0 .8rem; color: var(--muted); font-variant-numeric: tabular-nums; font-size: .95rem; }
+.clock b { display: block; font: 700 1.7rem var(--f); color: var(--fg); }
+.main { overflow-y: auto; overflow-x: hidden; padding: 2rem 2.4rem 6rem; scrollbar-width: none; min-width: 0; scroll-behavior: smooth; }
+.main::-webkit-scrollbar { display: none; }
+.vh { margin-bottom: 1rem; }
+.vh h1 { font: 800 2.2rem/1.1 var(--f); letter-spacing: -.02em; text-wrap: balance; }
+.sub { color: var(--muted); margin-top: .35rem; }
+.sec { display: flex; align-items: baseline; gap: .8rem; margin: 1.2rem 0 0; }
+.sec h2 { font: 700 1.35rem var(--f); letter-spacing: -.01em; }
+.sec span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sec .more { margin-left: auto; color: var(--cyan); font-weight: 600; font-size: .95rem; padding: .3rem .8rem; border-radius: .6rem; }
+.eyebrow { font-size: .8rem; letter-spacing: .16em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+
+/* botões e chips */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .6rem; padding: .8rem 1.5rem; border-radius: .8rem; background: var(--surface-2); color: var(--fg); font-weight: 700; transition: transform .15s; border: 1px solid var(--line); }
+.btn.sm { padding: .55rem 1.05rem; font-size: .92rem; border-radius: .7rem; gap: .45rem; }
+.btn.sm svg.i { width: 1.1rem; height: 1.1rem; }
+.pbtns.row { flex-wrap: nowrap; justify-content: center; }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: transparent; }
+.btn.ghost { background: transparent; border-color: rgba(255,255,255,.55); color: #fff; }
+.btn:hover, .chip:hover { filter: brightness(1.08); }
+.btn:focus, .chip:focus, .srow:focus, .g-ch:focus, .g-cell:focus, .ep:focus, .ibtn:focus, .more:focus { box-shadow: 0 0 0 .18rem var(--bg), 0 0 0 .4rem var(--ring); transform: scale(1.03); }
+.ibtn { width: 2.8rem; height: 2.8rem; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--fg); }
+.chips { display: flex; flex-wrap: wrap; gap: .6rem; padding: .5rem .6rem .9rem; margin: 0 -.6rem; }
+.chip { padding: .5rem 1.1rem; border-radius: .7rem; background: var(--chip); color: var(--chip-fg); font-weight: 600; font-size: .98rem; border: 1px solid var(--line); }
+.chip.on { background: var(--primary); color: var(--on-primary); border-color: transparent; }
+.chips.scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.chips.scroll::-webkit-scrollbar { display: none; }
+.chips.scroll .chip { flex: none; }
+
+/* hero */
+.hero { position: relative; display: flex; align-items: center; min-height: 20rem; border-radius: 1.4rem; overflow: hidden; background: var(--hero-bg); color: #fff; margin-bottom: 1.4rem; border: 1px solid var(--line); }
+.hbg { position: absolute; top: -10%; right: -5%; bottom: -10%; width: 70%; object-fit: cover; filter: blur(22px) saturate(1.2); opacity: .55; }
+.hposter { position: absolute; right: 2.4rem; top: 50%; transform: translateY(-50%); height: 84%; border-radius: .9rem; box-shadow: 0 1rem 2.4rem rgba(0,0,0,.5); max-width: 28%; object-fit: cover; }
+.hmascot { position: absolute; right: 3rem; bottom: 0; height: 94%; width: auto; z-index: 1; filter: drop-shadow(0 .8rem 1.4rem rgba(0,0,0,.5)); }
+.hposter.logo { height: 9rem; width: 9rem; border-radius: 1.6rem; }
+.hero::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, var(--hero-bg) 8%, rgba(12,10,11,.75) 45%, rgba(12,10,11,0) 85%); }
+.hin { position: relative; z-index: 2; padding: 2.2rem 2.6rem; max-width: 60%; display: grid; gap: .8rem; justify-items: start; }
+.hin h1 { font: 800 2.7rem/1.05 var(--f); letter-spacing: -.025em; text-wrap: balance; }
+.hin p { color: rgba(255,255,255,.8); }
+.hin .hdesc { max-width: 35rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45; }
+.hin .btns { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: .4rem; }
+.livepill { display: inline-flex; align-items: center; gap: .45rem; background: var(--live); color: #fff; font-weight: 700; font-size: .8rem; letter-spacing: .08em; padding: .28rem .65rem; border-radius: .5rem; flex: none; }
+.livepill::before { content: ""; width: .48rem; height: .48rem; background: #fff; border-radius: 50%; }
+.livepill.vp { background: var(--primary); }
+.livepill.vp::before { display: none; }
+
+/* cards */
+.row-h { display: flex; gap: 1.2rem; overflow-x: auto; padding: .9rem .7rem 1.3rem; margin: 0 -.7rem; scrollbar-width: none; }
+.row-h::-webkit-scrollbar { display: none; }
+.row-h > .card { flex: 0 0 var(--cw, 19rem); }
+.row-h > .pc { flex: 0 0 var(--pw, 10.5rem); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cw, 19rem), 1fr)); gap: 1.5rem 1.3rem; padding: .9rem .7rem 1.2rem; margin: 0 -.7rem; }
+.grid.p { grid-template-columns: repeat(auto-fill, minmax(var(--pw, 10.5rem), 1fr)); gap: 1.4rem 1.1rem; }
+.card, .pc { position: relative; display: flex; flex-direction: column; gap: .65rem; border-radius: 1rem; transition: transform .18s; min-width: 0; }
+.card:focus, .pc:focus { transform: scale(1.04); }
+.card:focus .thumb, .pc:focus .pt { box-shadow: 0 0 0 .18rem var(--bg), 0 0 0 .4rem var(--ring), 0 1rem 2rem rgba(0,0,0,.4); }
+.thumb, .pt { position: relative; height: 0; border-radius: 1rem; overflow: hidden; background: linear-gradient(145deg, hsl(var(--h) 40% 26%), hsl(var(--h) 46% 12%)); transition: box-shadow .18s; }
+.thumb { padding-top: 56.25%; }
+.pt { padding-top: 150%; }
+.thumb > *, .pt > * { position: absolute; }
+.thumb > img.pv, .pt > img.pv { top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+.thumb .logo { left: 50%; top: 50%; width: 26%; transform: translate(-50%, -50%); border-radius: 22%; box-shadow: 0 .5rem 1.3rem rgba(0,0,0,.35); }
+.pt .ph { left: 0; right: 0; top: 0; bottom: 0; display: grid; place-items: center; padding: 1rem; text-align: center; font-weight: 700; color: rgba(255,255,255,.85); line-height: 1.2; }
+.badge { font-size: .75rem; font-weight: 700; letter-spacing: .08em; padding: .2rem .55rem; border-radius: .45rem; background: rgba(0,0,0,.62); color: #fff; font-variant-numeric: tabular-nums; }
+.badge.num { top: .6rem; left: .6rem; }
+.badge.live { left: .6rem; bottom: .6rem; background: var(--live); display: inline-flex; align-items: center; gap: .4rem; }
+.badge.live::before { content: ""; width: .42rem; height: .42rem; border-radius: 50%; background: #fff; }
+.badge.off { left: .6rem; bottom: .6rem; background: rgba(0,0,0,.72); color: #cfd6e3; }
+.badge.cat { left: .6rem; bottom: .6rem; background: var(--primary); }
+.star, .trash { width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.58); color: #fff; opacity: 0; transition: opacity .15s; }
+.star { top: .5rem; right: .5rem; }
+.trash { bottom: .5rem; right: .5rem; }
+.star svg, .trash svg { width: 1.05rem; height: 1.05rem; }
+.star.on { color: #FF5C8A; opacity: 1; }
+.card:hover .star, .card:hover .trash, .pc:hover .star, .pc:hover .trash { opacity: 1; }
+.trash.ask { background: var(--live); opacity: 1; }
+@media (hover: none) { .star, .trash { opacity: 1; } }
+.cmeta { display: grid; gap: .15rem; padding: 0 .15rem; min-width: 0; }
+.cmeta b { font: 700 1.02rem/1.25 var(--f); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .cmeta b { white-space: nowrap; display: block; text-overflow: ellipsis; }
+.cmeta span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; }
+.bar { display: block; height: .28rem; border-radius: 9px; background: var(--line); overflow: hidden; margin-top: .3rem; }
+.bar u { display: block; height: 100%; background: var(--grad); text-decoration: none; }
+
+/* série */
+.show { display: flex; gap: 1.8rem; align-items: flex-end; margin-bottom: 1rem; }
+.show .pt { width: 11rem; height: 16.5rem; padding-top: 0; flex: none; }
+.show h1 { font: 800 2.2rem/1.1 var(--f); letter-spacing: -.02em; }
+.eps { display: grid; gap: .6rem; padding: .4rem .6rem 1rem; margin: 0 -.6rem; }
+.ep { display: flex; align-items: center; gap: 1rem; padding: .8rem 1.1rem; background: var(--surface); border-radius: .9rem; border: 1px solid var(--line); min-width: 0; }
+.ep .en { flex: none; min-width: 3.4rem; font-weight: 800; color: var(--cyan); font-variant-numeric: tabular-nums; }
+.ep b { font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep .meta { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; flex: none; }
+
+/* guia */
+.g-row { display: grid; grid-template-columns: 14rem minmax(0, 1fr); gap: .9rem; margin-bottom: .5rem; align-items: stretch; }
+.g-ch { display: flex; align-items: center; gap: .8rem; padding: .7rem .9rem; background: var(--surface); border: 1px solid var(--line); border-radius: .9rem; min-width: 0; }
+.g-ch img { width: 2.6rem; height: 2.6rem; border-radius: 22%; flex: none; object-fit: cover; }
+.g-ch div { min-width: 0; display: grid; }
+.g-ch b { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-ch small { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.g-track { display: flex; gap: .55rem; overflow-x: auto; scrollbar-width: none; padding: .45rem .5rem; }
+.g-track::-webkit-scrollbar { display: none; }
+.g-cell { flex: none; display: flex; flex-direction: column; justify-content: center; gap: .2rem; padding: .7rem 1rem; border-radius: .9rem; background: var(--surface); min-height: 4.5rem; overflow: hidden; border: 1px solid var(--line); }
+.g-cell.now { background: var(--surface-2); border-color: var(--primary); }
+.g-cell .t { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; gap: .6rem; align-items: center; }
+.g-cell .t i { font-style: normal; font-weight: 700; color: #fff; background: var(--primary); border-radius: .35rem; padding: 0 .45rem; font-size: .72rem; letter-spacing: .06em; }
+.g-cell b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* configurações / importação */
+.srow { display: flex; justify-content: space-between; align-items: center; gap: 1.4rem; padding: 1.1rem 1.4rem; background: var(--surface); border: 1px solid var(--line); border-radius: 1rem; margin: 0 .6rem .7rem; max-width: 50rem; width: calc(100% - 1.2rem); transition: transform .15s; }
+.srow b { font-weight: 600; }
+.srow small { color: var(--muted); }
+.srow .val { display: inline-flex; align-items: center; gap: .6rem; color: var(--cyan); font-weight: 700; text-align: right; }
+.srow .val svg { width: 1.05rem; height: 1.05rem; color: var(--muted); }
+.about { margin: 0 .6rem 1rem; max-width: 50rem; padding: 1.2rem 1.4rem; background: var(--surface); border: 1px solid var(--line); border-radius: 1rem; color: var(--muted); line-height: 1.55; }
+.about b { color: var(--fg); }
+.inp { box-sizing: border-box; display: block; width: calc(100% - 1.2rem); max-width: 50rem; margin: 0 .6rem 1rem; padding: 1rem 1.2rem; border-radius: .9rem; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 500 1.05rem var(--f); resize: none; }
+.inp:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 .18rem var(--bg), 0 0 0 .4rem var(--ring); }
+.inp::placeholder { color: var(--muted); }
+.pbtns { display: flex; gap: .8rem; flex-wrap: wrap; margin: 0 .6rem 1rem; }
+
+/* vazio / carregando */
+.mascot { display: block; width: auto; max-width: 100%; object-fit: contain; filter: drop-shadow(0 .8rem 1.4rem rgba(0,0,0,.45)); user-select: none; -webkit-user-drag: none; }
+.empty .mascot { height: 13rem; }
+.empty .mascot.big { height: 22rem; }
+.p-state .mascot { height: 10rem; max-height: 26vh; }
+.about { display: flex; align-items: center; gap: 1rem; }
+.about .mascot { height: 7rem; flex: none; }
+.empty { display: grid; justify-items: center; text-align: center; gap: .9rem; padding: 3rem 1rem; max-width: 36rem; margin: 0 auto; }
+.empty .logo-mark { width: 6rem; height: 6rem; }
+.empty .wm { font-size: 2.4rem; }
+.empty small.tag { font: 500 .75rem var(--f); letter-spacing: .4em; color: var(--muted); }
+.empty svg.i { width: 3.4rem; height: 3.4rem; color: var(--muted); }
+.empty h2 { font: 700 1.7rem var(--f); text-wrap: balance; }
+.empty p { color: var(--muted); }
+.spin { width: 3.8rem; height: 3.8rem; border-radius: 50%; border: .33rem solid var(--line); border-top-color: var(--cyan); animation: sp .9s linear infinite; }
+#player .spin { border-color: rgba(255,255,255,.22); border-top-color: var(--cyan); }
+@keyframes sp { to { transform: rotate(360deg); } }
+.hints { position: absolute; left: 16rem; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: .4rem 1.6rem; padding: 1rem 2.4rem; background: linear-gradient(transparent, var(--bg) 60%); color: var(--muted); font-size: .9rem; pointer-events: none; }
+.hints span { display: inline-flex; align-items: center; gap: .5rem; }
+.hints kbd { font: 700 .78rem var(--f); padding: .15rem .55rem; border-radius: .4rem; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
+
+/* player */
+#player { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 50; background: #000; color: var(--pl-fg); }
+#vid { width: 100%; height: 100%; object-fit: contain; background: #000; display: block; }
+.p-top, .p-bottom { position: absolute; left: 0; right: 0; transition: opacity .25s; padding-left: max(2.4rem, env(safe-area-inset-left, 0px)); padding-right: max(2.4rem, env(safe-area-inset-right, 0px)); }
+.p-top { top: 0; display: flex; align-items: center; gap: 1.1rem; padding-top: calc(1.5rem + env(safe-area-inset-top, 0px)); padding-bottom: 3rem; background: linear-gradient(rgba(0,0,0,.82), transparent); }
+.p-bottom { bottom: 0; padding-top: 5rem; padding-bottom: calc(1.6rem + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, rgba(0,0,0,.9)); display: grid; gap: 1rem; }
+#player.ui-hidden .p-top, #player.ui-hidden .p-bottom { opacity: 0; pointer-events: none; }
+.p-top .chinfo { display: flex; align-items: center; gap: .9rem; min-width: 0; flex: 1; }
+.p-top img { width: 3.2rem; height: 3.2rem; border-radius: 22%; flex: none; object-fit: cover; }
+.p-top .nm { display: grid; min-width: 0; }
+.p-top .nm b { font: 700 1.5rem var(--f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-top .nm span { color: var(--pl-muted); font-variant-numeric: tabular-nums; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-top .pclock { font: 600 1.2rem var(--f); font-variant-numeric: tabular-nums; color: var(--pl-muted); }
+.p-prog { display: grid; gap: .35rem; }
+.p-prog .now { font: 700 1.5rem/1.15 var(--f); text-wrap: balance; }
+.p-prog .tm { color: var(--pl-muted); display: flex; justify-content: space-between; gap: 1rem; font-variant-numeric: tabular-nums; }
+.p-prog .tm span:last-child { text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pbar { height: .42rem; background: rgba(255,255,255,.25); border-radius: 9px; overflow: hidden; }
+#player.vod .pbar { cursor: pointer; height: .55rem; }
+.pbar u { display: block; height: 100%; background: var(--grad); text-decoration: none; }
+.ctls { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
+.ctl { width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--pl-ctl); color: #fff; display: grid; place-items: center; transition: transform .15s; }
+.ctl svg { width: 1.6rem; height: 1.6rem; }
+.ctl.on { color: #FF5C8A; }
+.ctl.sp { margin-left: auto; }
+.vol { min-width: 3.4rem; text-align: center; font-variant-numeric: tabular-nums; color: var(--pl-muted); }
+#player:not(.vod) .vod-only { display: none; }
+#player.err .p-bottom { display: none; }
+#yt { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; background: #000; }
+#ytShield { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; }
+.p-top, .p-bottom, .p-state, .reveal { z-index: 2; }
+.reveal { position: absolute; right: max(1.2rem, env(safe-area-inset-right, 0px)); bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px)); width: 3.2rem; height: 3.2rem; border-radius: 50%; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); color: #fff; display: none; place-items: center; z-index: 4; }
+#player.ui-hidden .reveal { display: grid; }
+#player.err .reveal { display: none; }
+.p-state .st.panel { max-height: 86%; overflow-y: auto; box-sizing: border-box; }
+#player [data-f]:focus { box-shadow: 0 0 0 .16rem rgba(0,0,0,.7), 0 0 0 .36rem var(--cyan); transform: scale(1.1); }
+#player .btn:focus { transform: scale(1.04); }
+.p-state { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: grid; place-items: center; text-align: center; pointer-events: none; padding: 1rem; }
+.p-state .st { pointer-events: auto; display: grid; justify-items: center; gap: .9rem; max-width: 34rem; }
+.p-state .st.panel { background: rgba(12,10,11,.92); border: 1px solid rgba(255,255,255,.14); border-radius: 1.3rem; padding: 2rem 2.2rem; }
+.p-state svg.i { width: 3.2rem; height: 3.2rem; color: #FF9AA6; }
+.p-state h2 { font: 700 1.6rem var(--f); }
+.p-state p { color: var(--pl-muted); }
+.p-state .btns { display: flex; gap: .8rem; flex-wrap: wrap; justify-content: center; margin-top: .4rem; }
+.p-state .btn { background: rgba(255,255,255,.14); color: #fff; border-color: transparent; }
+.p-state .btn.primary { background: var(--primary); }
+.osd { position: absolute; top: calc(1.5rem + env(safe-area-inset-top, 0px)); right: max(2.4rem, env(safe-area-inset-right, 0px)); font: 800 4.2rem/1 var(--f); font-variant-numeric: tabular-nums; background: rgba(0,0,0,.62); padding: .5rem 1.2rem; border-radius: 1rem; z-index: 3; }
+#gtoast { position: fixed; left: 50%; bottom: calc(6rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 90; background: rgba(24,18,20,.96); color: #fff; border: 1px solid rgba(255,255,255,.16); padding: .7rem 1.3rem; border-radius: .8rem; font-weight: 600; max-width: 90%; text-align: center; }
+
+/* central de addons */
+.addon-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .7rem; max-width: 58rem; margin: 0 .6rem 1.2rem; }
+.addon-form .inp { width: 100%; max-width: none; margin: 0; min-width: 0; }
+.addon-note { margin: 0 .6rem 1rem; max-width: 58rem; color: var(--muted); }
+.addon-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: 1rem; padding: .7rem .6rem 1.2rem; }
+.addon-card { min-width: 0; padding: 1.2rem; border-radius: 1rem; border: 1px solid var(--line); background: var(--surface); display: grid; gap: .65rem; }
+.addon-title { display: flex; align-items: center; gap: .8rem; min-width: 0; }
+.addon-icon { width: 2.8rem; height: 2.8rem; border-radius: .8rem; display: grid; place-items: center; flex: none; background: var(--grad); color: #fff; font-weight: 800; font-size: 1.2rem; }
+.addon-icon img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.addon-title h2 { font: 700 1.1rem/1.25 var(--f); overflow-wrap: anywhere; }
+.addon-meta { color: var(--muted); font-size: .9rem; }
+.addon-desc { color: var(--muted); overflow-wrap: anywhere; }
+.addon-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .2rem; }
+.addon-actions .btn { padding: .55rem .8rem; font-size: .88rem; }
+.addon-status { font-weight: 700; color: var(--cyan); }
+.addon-tabs { display:flex; gap:.5rem; flex-wrap:wrap; padding:.3rem .6rem 1rem; }
+.addon-tabs .btn.on { background:var(--primary); color:var(--on-primary); border-color:transparent; }
+.addon-progress { margin:0 .6rem 1rem; max-width:58rem; padding:.65rem .8rem; border-radius:.7rem; color:var(--muted); background:var(--surface); }
+.addon-progress::after { content:""; display:block; height:.2rem; margin-top:.5rem; border-radius:2rem; background:linear-gradient(90deg,transparent,var(--primary),transparent); background-size:200% 100%; animation:addonprogress 1.2s linear infinite; }
+@keyframes addonprogress { to { background-position:-200% 0; } }
+.addon-preview { margin:0 .6rem 1rem; max-width:58rem; padding:1rem; border:1px solid var(--line); border-radius:1rem; background:var(--surface); }
+.addon-preview h2 { margin:.2rem 0 .6rem; }
+.addon-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,22rem),1fr)); gap:1rem; padding:.7rem .6rem 1.2rem; }
+.addon-repo { border:1px solid var(--line); background:var(--surface); border-radius:1rem; padding:1rem; margin:.6rem; }
+.addon-row { display:flex; gap:.7rem; align-items:center; flex-wrap:wrap; }
+.addon-row .inp { flex:1; min-width:14rem; margin:0; }
+.addon-card details { border-top:1px solid var(--line); padding-top:.55rem; color:var(--muted); }
+.addon-card summary { cursor:pointer; color:var(--fg); font-weight:600; }
+.addon-badge { display:inline-block; padding:.2rem .5rem; margin:.2rem; border-radius:.5rem; font-size:.78rem; background:var(--surface-2); color:var(--muted); }
+@media (max-width: 900px), (orientation: portrait) {
+  .addon-form { grid-template-columns: minmax(0, 1fr); margin-left: .2rem; margin-right: .2rem; }
+  .addon-list { padding-left: .2rem; padding-right: .2rem; }
+}
+
+/* celular / vertical */
+@media (max-width: 900px), (orientation: portrait) {
+  html { font-size: clamp(13px, 3.6vw, 17px); }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+  .mhead { display: flex; align-items: center; gap: .6rem; padding: .7rem .2rem .5rem; padding-top: .7rem; }
+  .mhead .brand { padding: 0; margin-right: auto; gap: .6rem; }
+  .mhead .logo-mark { width: 2.3rem; height: 2.3rem; }
+  .mhead .wm { font-size: 1.25rem; }
+  .side { order: 3; flex-direction: row; justify-content: space-around; align-items: stretch; gap: 0; margin: 0 .4rem calc(.5rem + env(safe-area-inset-bottom, 0px)); padding: .3rem; background: var(--surface); border-radius: 1.6rem; }
+  .side .brand, .side .clock, .nav.mx { display: none; }
+  .nav { flex-direction: column; gap: .2rem; padding: .45rem .3rem; font-size: .7rem; flex: 1; min-width: 0; text-align: center; background: transparent; }
+  .nav span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .nav { border-radius: 1.2rem; }
+  .nav.on { background: var(--surface-2); color: var(--cyan); }
+  .main { padding: .6rem .2rem 1.5rem; }
+  .hints { display: none; }
+  .vh h1 { font-size: 1.7rem; }
+  .hero { min-height: 15rem; border-radius: 1.1rem; }
+  .hin { max-width: 100%; padding: 1.3rem 1.2rem; }
+  .hin h1 { font-size: 1.8rem; }
+  .hposter { display: none; }
+  .hbg { width: 100%; right: 0; opacity: .5; }
+  .hero::after { background: linear-gradient(180deg, rgba(12,10,11,.2), rgba(12,10,11,.92) 90%); }
+  :root { --cw: 15rem; --pw: 8.6rem; }
+  .row-h > .card { flex-basis: 15rem; }
+  .row-h > .pc { flex-basis: 8.6rem; }
+  .g-row { grid-template-columns: 7.5rem minmax(0, 1fr); }
+  .g-ch img { display: none; }
+  .show { flex-direction: column; align-items: flex-start; }
+  .show .pt { width: 8rem; height: 12rem; }
+  .p-top, .p-bottom { padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px)); }
+  .osd { font-size: 3rem; right: 1rem; }
+  #gtoast { bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; scroll-behavior: auto !important; }
+  .card:focus, .pc:focus, .btn:focus, .chip:focus, .srow:focus, .g-ch:focus, .g-cell:focus, .ep:focus { transform: none; }
+}
+</style>
+
+<div class="app" id="app">
+  <header class="mhead" id="mhead"></header>
+  <nav class="side" id="side" aria-label="Menu"></nav>
+  <main class="main" id="main"></main>
+  <div class="hints" id="hints"></div>
+</div>
+
+<div id="player" hidden>
+  <video id="vid" playsinline></video>
+  <iframe id="yt" hidden allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" title="YouTube"></iframe>
+  <div id="ytShield" hidden></div>
+  <div class="p-top">
+    <button class="ctl" data-f data-act="back" id="pBack"></button>
+    <div class="chinfo">
+      <img id="pLogo" alt="">
+      <div class="nm"><b id="pName"></b><span id="pNum"></span></div>
+      <span class="livepill" id="pLive"></span>
+    </div>
+    <span class="pclock" id="pClock"></span>
+  </div>
+  <button class="reveal" id="pReveal" tabindex="-1"></button>
+  <div class="osd" id="osd" hidden></div>
+  <div class="p-state" id="pState"></div>
+  <div class="p-bottom">
+    <div class="p-prog">
+      <div class="now" id="pNow"></div>
+      <div class="pbar" id="pSeek"><u id="pBar" style="width:0%"></u></div>
+      <div class="tm"><span id="pTimes"></span><span id="pNext"></span></div>
+    </div>
+    <div class="ctls" id="pCtls"></div>
+  </div>
+</div>
+<div id="gtoast" hidden></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- utilidades ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('sintonia.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('sintonia.' + k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+};
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const pad = n => String(n).padStart(2, '0');
+const hm = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+const mmss = s => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ':' + pad(m) : m) + ':' + pad(s % 60); };
+const hash = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- ícones e marca ---------- */
+const P = {
+  home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',
+  tv: 'M3 6h18v12H3zM8 21h8M12 18v3',
+  film: 'M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4',
+  series: 'M4 9h16v11H4zM7 5.5h10M9.5 2h5',
+  search: 'M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-5-5',
+  star: 'M12 20s-7-4.6-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.4-7 10-7 10z',
+  guide: 'M4 5h16M4 10h10M4 15h16M4 20h10',
+  gear: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
+  play: 'M7 4l13 8-13 8z',
+  pause: 'M7 4h3.5v16H7zM13.5 4H17v16h-3.5z',
+  vol: 'M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12',
+  mute: 'M4 9v6h4l5 4V5L8 9zM17 9l5 6M22 9l-5 6',
+  volm: 'M4 9v6h4l5 4V5L8 9zM17 12h4',
+  volp: 'M4 9v6h4l5 4V5L8 9zM17 12h4M19 10v4',
+  full: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  back: 'M15 5l-7 7 7 7',
+  fwd: 'M9 5l7 7-7 7',
+  prev: 'M6 5v14M18 5l-9 7 9 7z',
+  next: 'M18 5v14M6 5l9 7-9 7z',
+  rew: 'M11 5l-7 7 7 7M20 5l-7 7 7 7',
+  ffw: 'M13 5l7 7-7 7M4 5l7 7-7 7',
+  retry: 'M20 12a8 8 0 11-2.5-5.8M20 4v5h-5',
+  wifioff: 'M2 8.8a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0M12 20h.01M3 3l18 18',
+  alert: 'M12 3l10 18H2zM12 10v5M12 18h.01',
+  tvoff: 'M3 5h18v12H3zM8 21h8M12 17v4M3 3l18 18',
+  trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5',
+  plus: 'M12 5v14M5 12h14',
+  more: 'M5 12h.01M12 12h.01M19 12h.01'
+};
+const FILLED = { play: 1, pause: 1 };
+const ico = (n, x) => `<svg class="i${FILLED[n] ? ' f' : ''}${x ? ' ' + x : ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const icoFill = n => `<svg class="i f" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const mascot = (n, cls) => `<img class="mascot ${cls || ''}" src="img/${n}.webp" alt="" decoding="async" onerror="this.remove()">`;
+const logoMark = (cls) => `<img class="logo-mark ${cls || ''}" src="img/ruivo-tv-mark.png" alt="Logo Ruivo TV" decoding="async">`;
+const wordmark = () => `<span class="wm">RUIVO <i>TV</i></span>`;
+
+/* ---------- idiomas ---------- */
+const I18N = {
+  pt: {
+    home: 'Início', live: 'Ao vivo', movies: 'Filmes', series: 'Séries', search: 'Buscar', favs: 'Favoritos', guide: 'Guia', addons: 'Addons', settings: 'Ajustes',
+    tagline: 'ENTRETENIMENTO DIGITAL', watch: 'Assistir agora', myList: 'Minha lista', inList: 'Na minha lista',
+    nowLive: 'Ao vivo agora', featMovies: 'Filmes em destaque', featSeries: 'Séries em destaque', categories: 'Categorias', seeAll: 'Ver todos',
+    all: 'Todos', onAir: 'AO VIVO', offlineTag: 'OFFLINE', videoTag: 'VÍDEO', movieTag: 'FILME', seriesTag: 'SÉRIE', ch: 'CH', channels: 'Canais', moviesAndSeries: 'Filmes e séries',
+    noFavsT: 'Sua lista está vazia', noFavsD: 'Segure OK sobre um título, ou use a tecla amarela, para adicioná-lo à sua lista.',
+    emptyT: 'Vamos começar', emptyD: 'Importe uma playlist M3U sua para ver canais, filmes e séries aqui.', emptyKind: 'Nada por aqui ainda. Importe uma playlist com este tipo de conteúdo.',
+    noConnT: 'Sem conexão com a internet', noConnD: 'Verifique a rede. Tentaremos reconectar automaticamente.',
+    reload: 'Recarregar', loadMore: 'Carregar mais', next: 'A seguir', today: 'Hoje', nowBadge: 'NO AR',
+    hOk: 'Assistir', hHold: 'Segurar OK: favoritar', hBack: 'Voltar', hCh: 'Trocar canal', hChange: 'Alterar opção', hDel: 'Vermelho/Del: remover',
+    lang: 'Idioma', quality: 'Qualidade de vídeo', autoplay: 'Reprodução automática', subs: 'Legendas', theme: 'Tema', about: 'Sobre o aplicativo',
+    on: 'Ligada', off: 'Desligada', auto: 'Automática', dark: 'Escuro', light: 'Claro', q4k: '4K (quando suportado)',
+    aboutText: 'reproduz somente o que você cadastra: playlists M3U suas ou streams autorizados em channels.json. Nenhum conteúdo de terceiros vem incluído.',
+    subsHint: 'Quando o conteúdo oferecer legendas', autoHint: 'Abre o último título ao iniciar o app',
+    backList: 'Voltar', tuning: 'Carregando…', reconnecting: 'Reconectando',
+    offT: 'Canal fora do ar', offD: 'Este canal está offline no momento. Escolha outro ou tente mais tarde.',
+    unT: 'Transmissão indisponível', unD: 'Não foi possível carregar este conteúdo. O endereço pode ter mudado ou o provedor está com problemas.',
+    errT: 'Erro de reprodução', errD: 'O vídeo não pôde ser reproduzido neste aparelho.',
+    retry: 'Tentar novamente', nextCh: 'Próximo', toList: 'Voltar', chNotFound: 'Canal não encontrado',
+    volume: 'Volume', muted: 'Mudo', favAdd: 'Adicionar à minha lista', favRemove: 'Remover da minha lista', favAdded: 'Adicionado à lista', favRemoved: 'Removido da lista',
+    play: 'Play', pause: 'Pause', mute: 'Mudo', vDown: 'Diminuir volume', vUp: 'Aumentar volume', fs: 'Tela cheia',
+    chPrev: 'Anterior', chNext: 'Próximo', rew: 'Voltar 10 segundos', ffw: 'Avançar 10 segundos', loading: 'Carregando…',
+    showCtl: 'Mostrar controles', verify: 'Verificar canais', verifying: 'Verificando', stopHint: 'toque para parar', verOn: 'no ar', verOff: 'fora do ar', verifyUnsupported: 'A verificação só funciona no app Android (este ambiente bloqueia o teste dos links).', hideDead: 'Ocultar canais fora do ar', hideDeadHint: 'Esconde o que a verificação marcou como offline', autoUpdate: 'Atualizar playlist ao abrir', autoUpdateHint: 'Baixa a lista de novo pelo link salvo', plRefresh: 'Atualizar playlist agora', plSame: 'A playlist já está atualizada.', plRefreshFail: 'Não foi possível atualizar a playlist.', plRow: 'Playlist M3U', plTitle: 'Importar playlist', plSub: 'Cole o link de uma lista .m3u/.m3u8 ou o conteúdo dela. Use somente listas que você tem direito de assistir.',
+    plUrl: 'https://exemplo.com/lista.m3u', plText: 'Ou cole aqui o conteúdo da lista (#EXTM3U …)', plImport: 'Importar', plClear: 'Remover playlist',
+    plNone: 'Nada encontrado. Confira se é uma lista M3U válida.', plOk: 'itens importados.', plWorking: 'Importando…',
+    plFail: 'Não foi possível baixar a lista por link (esta tela bloqueia downloads externos; o app Android não). Abra o link no navegador, copie todo o texto e cole no campo abaixo.',
+    plQuota: 'Importado, mas a lista é grande demais para ficar salva neste aparelho.', plActive: 'itens', plCleared: 'Playlist removida.',
+    removeCh: 'Remover', removeAsk: 'Pressione de novo para remover', removedMsg: 'Removido', restoreRow: 'Restaurar itens removidos', plRemove: 'Remover playlist', restored: 'Itens restaurados.',
+    searchPh: 'Buscar canais, filmes e séries…', searchHint: 'Digite para buscar em toda a sua biblioteca.', searchNone: 'Nenhum resultado.',
+    episodes: 'episódios', season: 'Temporada', ep: 'Episódio', epShort: 'E', seasonShort: 'T', min: 'min',
+    addonTitle: 'Central de Addons', addonInstall: 'Instalar por manifesto HTTPS', addonInstallBtn: 'Validar e instalar', addonHint: 'Addons declarativos usam apenas JSON; scripts e pacotes executáveis não são aceitos.', addonNone: 'Nenhum addon instalado', addonAndroidOnly: 'Gerenciamento de addons está disponível no app Android.', addonInstalled: 'Instalado', addonEnabled: 'Ativo', addonDisabled: 'Desativado', addonEnable: 'Ativar', addonDisable: 'Desativar', addonUpdate: 'Verificar atualização', addonRemove: 'Desinstalar', addonRefresh: 'Atualizar catálogo', addonLoading: 'Consultando addon…', addonFailed: 'Falha no addon', addonCapabilities: 'Capacidades', addonSource: 'Origem', addonHosts: 'Hosts permitidos', addonCompat: 'Compatível com RuivoTV', addonInstallOk: 'Manifesto validado e instalado. Ative o addon para carregar o catálogo.', addonUpdateOk: 'Addon atualizado.', addonCatalogOk: 'Catálogo carregado.', addonRemoved: 'Addon removido.', addonBadUrl: 'Informe uma URL HTTPS de manifesto.', addonNoApi: 'O addon não forneceu um catálogo compatível.', addonNetworkNote: 'A versão atual aceita provedores JSON públicos por HTTPS, sem credenciais. Use apenas serviços e fontes autorizados.'
+  },
+  en: {
+    home: 'Home', live: 'Live', movies: 'Movies', series: 'Series', search: 'Search', favs: 'Favorites', guide: 'Guide', addons: 'Add-ons', settings: 'Settings',
+    tagline: 'DIGITAL ENTERTAINMENT', watch: 'Watch now', myList: 'My list', inList: 'In my list',
+    nowLive: 'Live now', featMovies: 'Featured movies', featSeries: 'Featured series', categories: 'Categories', seeAll: 'See all',
+    all: 'All', onAir: 'LIVE', offlineTag: 'OFFLINE', videoTag: 'VIDEO', movieTag: 'MOVIE', seriesTag: 'SERIES', ch: 'CH', channels: 'Channels', moviesAndSeries: 'Movies and series',
+    noFavsT: 'Your list is empty', noFavsD: 'Hold OK on a title, or press the yellow key, to add it to your list.',
+    emptyT: "Let's get started", emptyD: 'Import your own M3U playlist to see channels, movies and series here.', emptyKind: 'Nothing here yet. Import a playlist with this kind of content.',
+    noConnT: 'No internet connection', noConnD: 'Check the network. We will reconnect automatically.',
+    reload: 'Reload', loadMore: 'Load more', next: 'Up next', today: 'Today', nowBadge: 'ON AIR',
+    hOk: 'Watch', hHold: 'Hold OK: favorite', hBack: 'Back', hCh: 'Change channel', hChange: 'Change option', hDel: 'Red/Del: remove',
+    lang: 'Language', quality: 'Video quality', autoplay: 'Autoplay', subs: 'Subtitles', theme: 'Theme', about: 'About the app',
+    on: 'On', off: 'Off', auto: 'Automatic', dark: 'Dark', light: 'Light', q4k: '4K (when supported)',
+    aboutText: 'plays only what you add: your own M3U playlists or authorized streams in channels.json. No third-party content is bundled.',
+    subsHint: 'When the content provides subtitles', autoHint: 'Opens the last title when the app starts',
+    backList: 'Back', tuning: 'Loading…', reconnecting: 'Reconnecting',
+    offT: 'Channel is off the air', offD: 'This channel is offline right now. Pick another or try again later.',
+    unT: 'Content unavailable', unD: 'This content could not be loaded. The address may have changed or the provider is having problems.',
+    errT: 'Playback error', errD: 'The video could not be played on this device.',
+    retry: 'Try again', nextCh: 'Next', toList: 'Back', chNotFound: 'Channel not found',
+    volume: 'Volume', muted: 'Muted', favAdd: 'Add to my list', favRemove: 'Remove from my list', favAdded: 'Added to list', favRemoved: 'Removed from list',
+    play: 'Play', pause: 'Pause', mute: 'Mute', vDown: 'Volume down', vUp: 'Volume up', fs: 'Fullscreen',
+    chPrev: 'Previous', chNext: 'Next', rew: 'Back 10 seconds', ffw: 'Forward 10 seconds', loading: 'Loading…',
+    showCtl: 'Show controls', verify: 'Check channels', verifying: 'Checking', stopHint: 'tap to stop', verOn: 'online', verOff: 'offline', verifyUnsupported: 'Checking only works in the Android app (this environment blocks testing the links).', hideDead: 'Hide offline channels', hideDeadHint: 'Hides what the check marked as offline', autoUpdate: 'Update playlist on open', autoUpdateHint: 'Downloads the list again from the saved link', plRefresh: 'Update playlist now', plSame: 'The playlist is already up to date.', plRefreshFail: 'Could not update the playlist.', plRow: 'M3U playlist', plTitle: 'Import playlist', plSub: 'Paste the link to a .m3u/.m3u8 list or its contents. Use only lists you are entitled to watch.',
+    plUrl: 'https://example.com/list.m3u', plText: 'Or paste the list contents here (#EXTM3U …)', plImport: 'Import', plClear: 'Remove playlist',
+    plNone: 'Nothing found. Check that it is a valid M3U list.', plOk: 'items imported.', plWorking: 'Importing…',
+    plFail: 'Could not download the list by link (this screen blocks external downloads; the Android app does not). Open the link in a browser, copy all the text and paste it below.',
+    plQuota: 'Imported, but the list is too large to be saved on this device.', plActive: 'items', plCleared: 'Playlist removed.',
+    removeCh: 'Remove', removeAsk: 'Press again to remove', removedMsg: 'Removed', restoreRow: 'Restore removed items', plRemove: 'Remove playlist', restored: 'Items restored.',
+    searchPh: 'Search channels, movies and series…', searchHint: 'Type to search your whole library.', searchNone: 'No results.',
+    episodes: 'episodes', season: 'Season', ep: 'Episode', epShort: 'E', seasonShort: 'S', min: 'min',
+    addonTitle: 'Add-on Center', addonInstall: 'Install from HTTPS manifest', addonInstallBtn: 'Validate and install', addonHint: 'Declarative add-ons use JSON only; scripts and executable packages are not accepted.', addonNone: 'No add-ons installed', addonAndroidOnly: 'Add-on management is available in the Android app.', addonInstalled: 'Installed', addonEnabled: 'Enabled', addonDisabled: 'Disabled', addonEnable: 'Enable', addonDisable: 'Disable', addonUpdate: 'Check for update', addonRemove: 'Uninstall', addonRefresh: 'Refresh catalog', addonLoading: 'Loading add-on…', addonFailed: 'Add-on error', addonCapabilities: 'Capabilities', addonSource: 'Origin', addonHosts: 'Allowed hosts', addonCompat: 'Compatible with RuivoTV', addonInstallOk: 'Manifest validated and installed. Enable the add-on to load the catalog.', addonUpdateOk: 'Add-on updated.', addonCatalogOk: 'Catalog loaded.', addonRemoved: 'Add-on removed.', addonBadUrl: 'Enter an HTTPS manifest URL.', addonNoApi: 'The add-on did not provide a compatible catalog.', addonNetworkNote: 'This version accepts public JSON providers over HTTPS, without credentials. Use only authorized services and sources.'
+  }
+};
+
+/* ---------- estado ---------- */
+const DEFAULTS = { lang: 'pt', quality: 'auto', autoplay: false, subs: false, theme: 'dark', hideDead: true, autoUpdate: true };
+const S = Object.assign({}, DEFAULTS, store.get('settings', {}));
+const t = k => { const a = (I18N[S.lang] || I18N.pt)[k]; if (a != null) return a; const b = I18N.pt[k]; return b != null ? b : k; };
+const ADDON_TEXT = {
+  pt: {explore:'Explorar',installed:'Instalados',install:'Instalar por URL',repos:'Repositórios',updates:'Atualizações',search:'Buscar addons',category:'Categoria',all:'Todas',repoUrl:'URL HTTPS do repositório',addRepo:'Adicionar repositório',sync:'Sincronizar',removeRepo:'Remover repositório',lastSync:'Última sincronização',never:'Nunca',manifestUrl:'URL HTTPS de manifesto JSON (ZIP via repositório)',validate:'Pré-visualizar manifesto',confirm:'Confirmar instalação',confirmUpdate:'Confirmar atualização',cancel:'Cancelar',trust:'HTTPS protege o transporte, mas não certifica a confiança no desenvolvedor. Revise permissões, domínio e origem antes de continuar.',compat:'Compatibilidade',permissions:'Permissões',capabilities:'Conteúdos',changeLog:'Notas da versão',noRepos:'Adicione um repositório JSON próprio para explorar addons.',noResults:'Nenhum addon encontrado.',checkUpdates:'Verificar atualizações',noUpdates:'Nenhuma atualização disponível.',updateAvailable:'Atualização disponível',installDuplicate:'Já instalado',progress:'Processando…',offline:'Cache offline',demo:'DEMONSTRAÇÃO — dados fictícios e streams não funcionais',addDemo:'Instalar addon demonstrativo',repository:'Repositório',sha:'SHA-256',installFromRepo:'Pré-visualizar e instalar',noRepository:'Nenhum repositório adicionado.',updatedAt:'Atualizado',integrity:'Integridade do ZIP verificada pelo SHA-256 publicado no repositório.',packageNotTrusted:'O hash detecta alteração, mas não autentica a identidade do desenvolvedor.'},
+  en: {explore:'Explore',installed:'Installed',install:'Install by URL',repos:'Repositories',updates:'Updates',search:'Search add-ons',category:'Category',all:'All',repoUrl:'Repository HTTPS URL',addRepo:'Add repository',sync:'Sync',removeRepo:'Remove repository',lastSync:'Last sync',never:'Never',manifestUrl:'HTTPS JSON manifest URL (ZIP via repository)',validate:'Preview manifest',confirm:'Confirm installation',confirmUpdate:'Confirm update',cancel:'Cancel',trust:'HTTPS protects transport, but does not certify developer trust. Review permissions, domain and origin before continuing.',compat:'Compatibility',permissions:'Permissions',capabilities:'Content types',changeLog:'Release notes',noRepos:'Add your own JSON repository to explore add-ons.',noResults:'No add-ons found.',checkUpdates:'Check for updates',noUpdates:'No updates available.',updateAvailable:'Update available',installDuplicate:'Already installed',progress:'Working…',offline:'Offline cache',demo:'DEMO — fictional data and non-working streams',addDemo:'Install demo add-on',repository:'Repository',sha:'SHA-256',installFromRepo:'Preview and install',noRepository:'No repositories added.',updatedAt:'Updated',integrity:'ZIP integrity checked against SHA-256 published in the repository.',packageNotTrusted:'The hash detects changes, but does not authenticate developer identity.'}
+};
+const at = k => (ADDON_TEXT[S.lang] || ADDON_TEXT.pt)[k] || ADDON_TEXT.pt[k] || k;
+let favs = new Set(store.get('favs', []));
+const hidden = new Set(store.get('hidden', []));
+const HEALTH = store.get('health', {});
+let verifying = false, vAbort = false, vDone = 0, vTotal = 0;
+let pendingRemove = null;
+let BASE_ALL = [], ALL = [], CH = [], MOV = [], SERIES = [];
+let ADDONS = [], ADDON_CATALOGS = new Map(), ADDON_LOADING = new Set(), ADDON_ERRORS = {}, addonReqSeq = 0;
+let ADDON_REPOS = [], ADDON_REPO_ITEMS = [], ADDON_UPDATES = [], ADDON_PREVIEW = null;
+let ADDON_TAB = 'explore', ADDON_QUERY = '', ADDON_CATEGORY = 'all', ADDON_BUSY = false, ADDON_BUSY_TEXT = '', ADDON_MESSAGE = '';
+const ADDON_CACHED = new Set();
+let IDX = new Map(), SBY = new Map(), SID = new Map();
+let APP = { name: 'Ruivo', version: '2.0.0' };
+let view = 'home', loaded = false, loadFailed = false, aboutOpen = false;
+let showId = null, query = '';
+const cats = { live: 'all', movies: 'all', series: 'all' };
+const shown = { movies: 60, series: 60, live: 60 };
+const Modules = { features: {}, user: null, canWatch() { return true; }, onFavoritesChanged() {} };
+
+/* ---------- catálogo ---------- */
+const byId = id => IDX.get(id);
+const hueOf = c => c.hue != null ? c.hue : 4 + Math.round(hash(c.id || c.name) / 360 * 44);
+const numOf = c => pad(c.number);
+const h36 = x => { let h = 5381; for (let i = 0; i < x.length; i++) h = ((h << 5) + h + x.charCodeAt(i)) >>> 0; return h.toString(36); };
+const streamType = u => /youtube\.com|youtu\.be/i.test(u) ? 'youtube' : /m3u8/i.test(u) ? 'hls' : /\.(mp4|webm|mkv|ogv|mov|ts|m4v)(\?|$)/i.test(u) ? 'file' : 'auto';
+
+function getJSON(u) {
+  return new Promise((res, rej) => {
+    const x = new XMLHttpRequest(); x.open('GET', u + (location.protocol === 'file:' ? '' : '?t=' + Date.now()));
+    x.onload = () => { try { res(JSON.parse(x.responseText)); } catch (e) { rej(e); } };
+    x.onerror = rej; x.send();
+  });
+}
+
+function parseEp(name) {
+  let m = name.match(/^(.*?)[\s._\-–:|]*\bS(\d{1,2})\s*[ ._-]?E(\d{1,3})\b[\s._\-–:|]*(.*)$/i);
+  if (!m) m = name.match(/^(.*?)[\s._\-–:|]*\b(\d{1,2})x(\d{1,3})\b[\s._\-–:|]*(.*)$/i);
+  if (!m || !m[1].trim()) return null;
+  return { series: m[1].trim(), season: +m[2], ep: +m[3], title: m[4].trim() };
+}
+/* linha compacta: [nome, url, logo, categoria, número, tipo, duração, série, temporada, episódio] */
+function parseM3U(text) {
+  const raw = []; let meta = null;
+  for (const ln of String(text).split(/\r?\n/)) {
+    const l = ln.trim(); if (!l) continue;
+    if (l.startsWith('#EXTINF')) {
+      const a = k => { const m = l.match(new RegExp(k + '="([^"]*)"', 'i')); return m ? m[1] : ''; };
+      let q = false, ci = -1;
+      for (let i = 7; i < l.length; i++) { const c = l[i]; if (c === '"') q = !q; else if (c === ',' && !q) { ci = i; break; } }
+      const dm = (ci >= 0 ? l.slice(0, ci) : l).match(/^#EXTINF:\s*(-?\d+(?:\.\d+)?)/);
+      meta = { name: (ci >= 0 ? l.slice(ci + 1).trim() : '') || a('tvg-name'), logo: a('tvg-logo'), cat: a('group-title'), no: parseInt(a('tvg-chno'), 10) || 0, type: a('tvg-type').toLowerCase(), dur: dm ? parseFloat(dm[1]) : -1 };
+    } else if (l[0] !== '#' && /^https?:\/\//i.test(l)) {
+      const m = meta || { name: '', logo: '', cat: '', no: 0, type: '', dur: -1 };
+      const ep = parseEp(m.name);
+      let kind = 'live';
+      if (m.type === 'series' || ep || /s[eé]rie|series|seriado/i.test(m.cat) && m.dur > 0) kind = 'episode';
+      else if (m.type === 'movie' || m.dur > 0 || /movie|film|cinema/i.test(m.cat)) kind = 'movie';
+      let name = m.name, series = '', season = 0, epn = 0;
+      if (kind === 'episode') {
+        series = ep ? ep.series : (m.cat || m.name); season = ep ? ep.season : 1; epn = ep ? ep.ep : 0;
+        name = (ep && ep.title) || m.name;
+      }
+      raw.push([name, l, m.logo, m.cat, m.no, kind, m.dur > 0 ? Math.round(m.dur) : 0, series, season, epn]);
+      meta = null;
+    }
+  }
+  return raw;
+}
+function buildItems(rows) {
+  const used = new Set(), ids = new Set(), liveBy = new Map(), out = []; let next = 1;
+  rows.forEach((r, i) => {
+    const kind = r[5], url = r[1], lk = norm(r[0] || url);
+    if (kind === 'live') { const ex = liveBy.get(lk); if (ex) { if (ex.urls.indexOf(url) < 0) ex.urls.push(url); return; } }
+    let n = 0;
+    if (kind === 'live') { n = r[4]; if (!n || used.has(n)) { while (used.has(next)) next++; n = next; } used.add(n); }
+    let id = (kind === 'live' ? 'l' : kind === 'movie' ? 'm' : 'e') + h36(kind === 'live' ? lk : url), k = 1;
+    while (ids.has(id)) id = id.replace(/_\d+$/, '') + '_' + (k++);
+    ids.add(id);
+    const it = {
+      id, number: n, name: r[0] || (kind === 'live' ? t('ch') + ' ' + (n || i + 1) : '#' + (i + 1)),
+      category: r[3] || (kind === 'live' ? 'Playlist' : kind === 'movie' ? t('movies') : t('series')),
+      logo: r[2] || null, status: 'online', kind, dur: r[6], series: r[7], season: r[8], ep: r[9],
+      urls: [url], stream: { type: streamType(url), url, alts: [] }, schedule: []
+    };
+    if (kind === 'live') liveBy.set(lk, it);
+    out.push(it);
+  });
+  out.forEach(it => { it.stream.alts = it.urls.slice(1); });
+  return out;
+}
+const liveKey = c => 'n:' + (c.addonId ? c.addonId + ':' : '') + norm(c.name);
+function applyHealth() {
+  ALL.forEach(c => {
+    if (c.kind !== 'live' || !c.stream) return;
+    if (!c.urls) c.urls = [c.stream.url].concat(c.stream.alts || []);
+    const h = HEALTH[liveKey(c)];
+    c.dead = !!(h && h[0] === 0);
+    const w = (h && h[0] === 1 && h[2] && c.urls.indexOf(h[2]) >= 0) ? h[2] : c.urls[0];
+    c.stream.url = w; c.stream.alts = c.urls.filter(u => u !== w);
+  });
+}
+function rebuild() {
+  ALL = BASE_ALL.concat(...[...ADDON_CATALOGS.values()]).filter(c => !hidden.has(c.id));
+  applyHealth();
+  IDX = new Map(ALL.map(c => [c.id, c]));
+  CH = ALL.filter(c => c.kind === 'live' && !(S.hideDead && c.dead)).sort((a, b) => a.number - b.number);
+  const usedChannelNumbers = new Set();
+  let nextChannelNumber = CH.reduce((n, c) => Math.max(n, Number(c.number) || 0), 0) + 1;
+  CH.forEach(c => {
+    const n = Number(c.number) || 0;
+    if (n <= 0 || usedChannelNumbers.has(n)) { while (usedChannelNumbers.has(nextChannelNumber)) nextChannelNumber++; c.number = nextChannelNumber++; }
+    usedChannelNumbers.add(Number(c.number));
+  });
+  CH.sort((a, b) => a.number - b.number);
+  MOV = ALL.filter(c => c.kind === 'movie');
+  SBY = new Map();
+  ALL.filter(c => c.kind === 'episode').forEach(e => {
+    const k = norm(e.series); let s = SBY.get(k);
+    if (!s) { s = { id: 'sr-' + SBY.size, name: e.series, poster: e.logo, category: e.category, eps: [] }; SBY.set(k, s); }
+    if (!s.poster && e.logo) s.poster = e.logo;
+    s.eps.push(e);
+  });
+  SERIES = [...SBY.values()];
+  SERIES.forEach(s => s.eps.sort((a, b) => (a.season || 0) - (b.season || 0) || (a.ep || 0) - (b.ep || 0)));
+  SID = new Map(SERIES.map(s => [s.id, s]));
+}
+async function loadCatalog() {
+  loadFailed = false;
+  let data = null;
+  try { data = await getJSON('channels.json'); store.set('catalog', data); }
+  catch (e) { data = store.get('catalog', null); if (!data) loadFailed = true; }
+  BASE_ALL = [];
+  if (data) {
+    APP = Object.assign(APP, data.app || {});
+    Modules.features = data.features || {};
+    BASE_ALL = (data.channels || []).filter(c => c && c.id && c.name).map(c => { const o = Object.assign({ kind: 'live', schedule: [] }, c); if (o.stream && o.stream.url) o.urls = [o.stream.url].concat(o.stream.alts || []); return o; });
+  }
+  const rows = store.get('plrows', null);
+  if (rows && rows.length) { BASE_ALL = buildItems(rows); loadFailed = false; }
+  rebuild(); loaded = true;
+}
+
+/* ---------- programação (só canais do catálogo) ---------- */
+function parseT(s, base) { const p = String(s).split(':').map(Number), d = new Date(base); d.setHours(p[0] || 0, p[1] || 0, 0, 0); return d; }
+function timeline(ch, from, n) {
+  const sch = ch.schedule || []; if (!sch.length) return [];
+  const all = [];
+  [-1, 0, 1, 2].forEach(o => { const b = new Date(from); b.setDate(b.getDate() + o); sch.forEach(x => all.push({ start: parseT(x[0], b), title: x[1] })); });
+  all.sort((a, b) => a.start - b.start);
+  all.forEach((p, i) => { p.end = all[i + 1] ? all[i + 1].start : new Date(p.start.getTime() + 36e5); });
+  let i = all.findIndex(p => p.start <= from && from < p.end); if (i < 0) i = 0;
+  return all.slice(i, i + n);
+}
+const pct = p => p ? clamp((Date.now() - p.start) / (p.end - p.start), 0, 1) * 100 : 0;
+
+/* ---------- imagens ---------- */
+const monoCache = new Map();
+function monogram(c) {
+  if (monoCache.has(c.id)) return monoCache.get(c.id);
+  const h = hueOf(c), ini = String(c.name).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='26' fill='hsl(${h} 55% 44%)'/><text x='60' y='77' font-family='Arial,sans-serif' font-weight='700' font-size='50' text-anchor='middle' fill='white'>${esc(ini)}</text></svg>`;
+  const u = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); monoCache.set(c.id, u); return u;
+}
+const logoImg = (c, cls, alt) => `<img class="${cls || ''}" src="${esc(c.logo || monogram(c))}" data-fb="${esc(monogram(c))}" alt="${esc(alt == null ? '' : alt)}" loading="lazy" decoding="async">`;
+document.addEventListener('error', e => {
+  const el = e.target;
+  if (!el || el.tagName !== 'IMG') return;
+  if (el.dataset.fb) { const f = el.dataset.fb; delete el.dataset.fb; el.src = f; }
+  else if (el.classList.contains('pv') || el.classList.contains('hbg') || el.classList.contains('hposter')) el.remove();
+}, true);
+
+/* ---------- cards ---------- */
+const trashBtn = id => `<button class="trash" data-del="${esc(id)}" tabindex="-1" aria-label="${esc(t('removeCh'))}">${ico('trash')}</button>`;
+const starBtn = c => { const f = favs.has(c.id); return `<button class="star${f ? ' on' : ''}" data-fav="${esc(c.id)}" tabindex="-1" aria-label="${esc(f ? t('favRemove') : t('favAdd'))}">${icoFill('star')}</button>`; };
+
+function card(ch) { /* canal 16:9 */
+  const nn = timeline(ch, new Date(), 1)[0], off = ch.status === 'offline' || !!ch.dead;
+  return `<div class="card" data-f data-ch="${esc(ch.id)}" tabindex="-1" role="button" aria-label="${esc(ch.name)}">
+    <div class="thumb" style="--h:${hueOf(ch)}">
+      ${ch.preview ? `<img class="pv" src="${esc(ch.preview)}" alt="" loading="lazy">` : ''}
+      ${logoImg(ch, 'logo')}
+      <span class="badge num">${esc(t('ch'))} ${numOf(ch)}</span>
+      ${off ? `<span class="badge off">${esc(t('offlineTag'))}</span>` : `<span class="badge live">${esc(t('onAir'))}</span>`}
+      ${starBtn(ch)}${trashBtn(ch.id)}
+    </div>
+    <div class="cmeta"><b>${esc(ch.name)}</b><span>${esc(nn ? nn.title : ch.category)}</span>${ch.addonName ? `<span>${esc(t('addonSource'))}: ${esc(ch.addonName)}</span>` : ''}${nn && !off ? `<i class="bar"><u style="width:${pct(nn).toFixed(0)}%"></u></i>` : ''}</div>
+  </div>`;
+}
+function posterBox(c, extra) {
+  return `<div class="pt" style="--h:${hueOf(c)}"><div class="ph">${esc(c.name)}</div>${c.logo ? `<img class="pv" src="${esc(c.logo)}" alt="" loading="lazy" decoding="async">` : ''}${extra || ''}</div>`;
+}
+function pcard(it) { /* filme / episódio em pôster */
+  const sub = [it.kind === 'episode' ? it.series : (it.category || ''), it.year || '', it.rating || ''].filter(Boolean).join(' · ');
+  return `<div class="pc" data-f data-ch="${esc(it.id)}" tabindex="-1" role="button" aria-label="${esc(it.name)}">
+    ${posterBox(it, `<span class="badge cat">${esc(it.kind === 'episode' ? t('seriesTag') : t('movieTag'))}</span>${starBtn(it)}${trashBtn(it.id)}`)}
+    <div class="cmeta"><b>${esc(it.name)}</b><span>${esc(sub)}</span>${it.addonName ? `<span>${esc(t('addonSource'))}: ${esc(it.addonName)}</span>` : ''}</div>
+  </div>`;
+}
+function scard(s) {
+  return `<div class="pc" data-f data-series="${esc(s.id)}" tabindex="-1" role="button" aria-label="${esc(s.name)}">
+    ${posterBox({ id: s.id, name: s.name, logo: s.poster }, `<span class="badge cat">${esc(t('seriesTag'))}</span>`)}
+    <div class="cmeta"><b>${esc(s.name)}</b><span>${s.eps.length} ${esc(t('episodes'))}</span></div>
+  </div>`;
+}
+const anyCard = c => c.kind === 'live' ? card(c) : pcard(c);
+
+/* ---------- telas ---------- */
+const NAV = [['home', 'home'], ['live', 'tv'], ['movies', 'film'], ['series', 'series'], ['search', 'search'], ['favs', 'star'], ['guide', 'guide'], ['addons', 'plus'], ['settings', 'gear']];
+const MOBILE_HIDDEN = { favs: 1, guide: 1, addons: 1, settings: 1 };
+const navOn = v => view === v || (view === 'import' && v === 'settings') || (view === 'show' && v === 'series');
+
+function renderShell() {
+  $('#side').innerHTML =
+    `<div class="brand">${logoMark()}<div>${wordmark()}<small>${esc(t('tagline'))}</small></div></div>` +
+    NAV.map(n => `<button class="nav${navOn(n[0]) ? ' on' : ''}${MOBILE_HIDDEN[n[0]] ? ' mx' : ''}" data-f data-view="${n[0]}" aria-label="${esc(t(n[0]))}"${navOn(n[0]) ? ' aria-current="page"' : ''}>${ico(n[1])}<span>${esc(t(n[0]))}</span></button>`).join('') +
+    `<div class="clock"><b id="sClock"></b><span id="sDate"></span></div>`;
+  $('#mhead').innerHTML = `<div class="brand">${logoMark()}${wordmark()}</div>` +
+    `<button class="ibtn" data-f data-view="favs" aria-label="${esc(t('favs'))}">${ico('star')}</button>` +
+    `<button class="ibtn" data-f data-view="guide" aria-label="${esc(t('guide'))}">${ico('guide')}</button>` +
+    `<button class="ibtn" data-f data-view="addons" aria-label="${esc(t('addons'))}">${ico('plus')}</button>` +
+    `<button class="ibtn" data-f data-view="settings" aria-label="${esc(t('settings'))}">${ico('gear')}</button>`;
+  tickClock();
+  $('#hints').innerHTML = (view === 'settings' || view === 'import')
+    ? `<span><kbd>◀ ▶</kbd> ${esc(t('hChange'))}</span><span><kbd>BACK</kbd> ${esc(t('hBack'))}</span>`
+    : `<span><kbd>OK</kbd> ${esc(t('hOk'))}</span><span><kbd>${esc(t('hHold'))}</kbd></span><span><kbd>0-9</kbd><kbd>CH±</kbd> ${esc(t('hCh'))}</span><span><kbd>${esc(t('hDel'))}</kbd></span>`;
+}
+function tickClock() {
+  const d = new Date(), c = $('#sClock'), s = $('#sDate');
+  if (c) c.textContent = hm(d);
+  if (s) s.textContent = d.toLocaleDateString(S.lang === 'en' ? 'en-US' : 'pt-BR', { weekday: 'long', day: 'numeric', month: 'short' });
+}
+
+function emptyBrand() {
+  return `<div class="empty">${mascot('main', 'big')}${wordmark()}<small class="tag">${esc(t('tagline'))}</small><h2 style="margin-top:1.2rem">${esc(t('emptyT'))}</h2><p>${esc(t('emptyD'))}</p>
+    <div class="pbtns row" style="margin:.4rem 0 0"><button class="btn primary sm" data-f data-view="import" id="heroBtn">${ico('plus')}${esc(t('plTitle'))}</button><button class="btn sm" data-f data-act="reload">${ico('retry')}${esc(t('reload'))}</button></div></div>`;
+}
+function emptyNet() {
+  return `<div class="empty">${mascot('coffee')}<h2>${esc(t('noConnT'))}</h2><p>${esc(t('noConnD'))}</p><button class="btn primary sm" data-f data-act="reload" id="heroBtn">${ico('retry')}${esc(t('reload'))}</button></div>`;
+}
+const emptyKind = () => `<div class="empty">${mascot('laptop')}<p>${esc(t('emptyKind'))}</p><button class="btn primary sm" data-f data-view="import">${esc(t('plTitle'))}</button></div>`;
+const gate = () => !loaded ? `<div class="empty">${mascot('game')}<div class="spin"></div><p>${esc(t('loading'))}</p></div>` : (!ALL.length ? (loadFailed && !navigator.onLine ? emptyNet() : emptyBrand()) : null);
+
+function secHead(title, count, scope, catv) {
+  return `<div class="sec"><h2>${esc(title)}</h2>${count != null ? `<span>${count}</span>` : ''}${scope ? `<button class="more" data-f data-cat="${esc(scope + '|' + (catv || 'all'))}">${esc(t('seeAll'))}</button>` : ''}</div>`;
+}
+function heroOf() {
+  const last = byId(store.get('last', ''));
+  return last || MOV.find(m => m.logo) || (SERIES[0] && SERIES[0].eps[0]) || CH[0] || ALL[0];
+}
+function viewHome() {
+  const g = gate(); if (g) return g;
+  const h = heroOf(), isLive = h.kind === 'live', poster = !isLive && h.logo;
+  const sub = h.kind === 'episode' ? `${h.series} · ${t('seasonShort')}${h.season} ${t('epShort')}${h.ep}` : (h.category || '');
+  const f = favs.has(h.id);
+  const tag = isLive ? `<span class="livepill">${esc(t('onAir'))}</span>` : `<span class="livepill vp">${esc(h.kind === 'episode' ? t('seriesTag') : t('movieTag'))}</span>`;
+  const favList = ALL.filter(c => favs.has(c.id)).slice(0, 20);
+  const mcats = [...new Set(MOV.map(m => m.category))].slice(0, 12), scats = [...new Set(SERIES.map(s => s.category))].slice(0, 12);
+  return `<section class="hero" style="--h:${hueOf(h)}">
+    ${poster ? `<img class="hbg" src="${esc(h.logo)}" alt="">` : ''}
+    ${poster ? `<img class="hposter" src="${esc(h.logo)}" alt="">` : (h.logo ? `<img class="hposter logo" src="${esc(h.logo)}" data-fb="${esc(monogram(h))}" alt="">` : '')}
+    ${!poster && !h.logo ? mascot('main', 'hmascot') : ''}
+    <div class="hin">${tag}<h1>${esc(h.name)}</h1><p>${esc(sub)}</p>${h.description ? `<p class="hdesc">${esc(h.description)}</p>` : ''}
+      <div class="btns"><button class="btn primary" data-f data-ch="${esc(h.id)}" id="heroBtn">${ico('play')}${esc(t('watch'))}</button>
+      <button class="btn ghost" data-f data-fav="${esc(h.id)}">${ico(f ? 'star' : 'plus')}${esc(f ? t('inList') : t('myList'))}</button></div></div>
+  </section>
+  ${favList.length ? secHead(t('favs'), favList.length) + `<div class="row-h">${favList.map(anyCard).join('')}</div>` : ''}
+  ${CH.length ? secHead(t('nowLive'), CH.length, 'live') + `<div class="row-h">${CH.slice(0, 20).map(card).join('')}</div>` : ''}
+  ${MOV.length ? secHead(t('featMovies'), MOV.length, 'movies') + `<div class="row-h">${MOV.slice(0, 20).map(pcard).join('')}</div>` : ''}
+  ${SERIES.length ? secHead(t('featSeries'), SERIES.length, 'series') + `<div class="row-h">${SERIES.slice(0, 20).map(scard).join('')}</div>` : ''}
+  ${(mcats.length > 1) ? secHead(t('categories')) + `<div class="chips">${mcats.map(c => `<button class="chip" data-f data-cat="${esc('movies|' + c)}">${esc(c)}</button>`).join('')}</div>` : ''}`;
+}
+
+function chipRow(scope, list) {
+  const cur = cats[scope];
+  return `<div class="chips scroll"><button class="chip${cur === 'all' ? ' on' : ''}" data-f data-cat="${esc(scope + '|all')}">${esc(t('all'))}</button>${list.map(c => `<button class="chip${cur === c ? ' on' : ''}" data-f data-cat="${esc(scope + '|' + c)}">${esc(c)}</button>`).join('')}</div>`;
+}
+function moreBtn(scope, total) {
+  return shown[scope] < total ? `<div class="pbtns" style="justify-content:center"><button class="btn" data-f data-act="more-${scope}">${esc(t('loadMore'))} (${total - shown[scope]})</button></div>` : '';
+}
+function viewLive() {
+  const g = gate(); if (g) return g;
+  const anyLive = ALL.some(c => c.kind === 'live');
+  const vbar = `<div class="pbtns" style="margin:0 .6rem .3rem;align-items:center"><button class="btn sm" data-f data-act="verify">${ico('retry')}${esc(t('verify'))}</button><span class="sub" id="vstat" style="margin:0"></span></div>`;
+  if (!CH.length) return `<header class="vh"><h1>${esc(t('live'))}</h1></header>` + (anyLive ? vbar : '') + emptyKind();
+  const list0 = [...new Set(CH.map(c => c.category).filter(Boolean))].slice(0, 30);
+  if (cats.live !== 'all' && !list0.includes(cats.live)) cats.live = 'all';
+  const list = cats.live === 'all' ? CH : CH.filter(c => c.category === cats.live);
+  return `<header class="vh"><div class="eyebrow">${esc(t('onAir'))}</div><h1>${esc(t('live'))}</h1></header>
+    ${CH.some(c => c.schedule && c.schedule.length) ? `<div class="pbtns" style="margin-left:0"><button class="btn" data-f data-view="guide">${ico('guide')}${esc(t('guide'))}</button></div>` : ''}
+    ${vbar}
+    ${list0.length > 1 ? chipRow('live', list0) : ''}
+    <div class="grid">${list.slice(0, shown.live).map(card).join('')}</div>${moreBtn('live', list.length)}`;
+}
+function viewMovies() {
+  const g = gate(); if (g) return g;
+  const head = `<header class="vh"><h1>${esc(t('movies'))}</h1><p class="sub">${MOV.length}</p></header>`;
+  if (!MOV.length) return head + emptyKind();
+  const list0 = [...new Set(MOV.map(m => m.category))].slice(0, 40);
+  if (cats.movies !== 'all' && !list0.includes(cats.movies)) cats.movies = 'all';
+  if (cats.movies === 'all') {
+    if (list0.length <= 1) return head + `<div class="grid p">${MOV.slice(0, shown.movies).map(pcard).join('')}</div>${moreBtn('movies', MOV.length)}`;
+    const rows = list0.slice(0, 14).map(c => { const items = MOV.filter(m => m.category === c); return secHead(c, items.length, 'movies', c) + `<div class="row-h">${items.slice(0, 18).map(pcard).join('')}</div>`; }).join('');
+    return head + chipRow('movies', list0) + rows;
+  }
+  const list = MOV.filter(m => m.category === cats.movies);
+  return head + chipRow('movies', list0) + `<div class="grid p">${list.slice(0, shown.movies).map(pcard).join('')}</div>${moreBtn('movies', list.length)}`;
+}
+function viewSeries() {
+  const g = gate(); if (g) return g;
+  const head = `<header class="vh"><h1>${esc(t('series'))}</h1><p class="sub">${SERIES.length}</p></header>`;
+  if (!SERIES.length) return head + emptyKind();
+  const list0 = [...new Set(SERIES.map(s => s.category))].slice(0, 40);
+  if (cats.series !== 'all' && !list0.includes(cats.series)) cats.series = 'all';
+  const list = cats.series === 'all' ? SERIES : SERIES.filter(s => s.category === cats.series);
+  return head + (list0.length > 1 ? chipRow('series', list0) : '') + `<div class="grid p">${list.slice(0, shown.series).map(scard).join('')}</div>${moreBtn('series', list.length)}`;
+}
+function viewShow() {
+  const s = SID.get(showId); if (!s) return viewSeries();
+  const seasons = [...new Set(s.eps.map(e => e.season))];
+  let html = `<div class="show">${posterBox({ id: s.id, name: s.name, logo: s.poster })}<div><div class="eyebrow">${esc(s.category)}</div><h1>${esc(s.name)}</h1><p class="sub">${s.eps.length} ${esc(t('episodes'))}</p>
+    <div class="pbtns" style="margin:1rem 0 0"><button class="btn primary" data-f data-ch="${esc(s.eps[0].id)}" id="heroBtn">${ico('play')}${esc(t('watch'))}</button><button class="btn" data-f data-view="series">${ico('back')}${esc(t('series'))}</button></div></div></div>`;
+  seasons.forEach(se => {
+    const eps = s.eps.filter(e => e.season === se);
+    if (seasons.length > 1) html += secHead(`${t('season')} ${se}`, eps.length);
+    html += `<div class="eps">${eps.map(e => `<button class="ep" data-f data-ch="${esc(e.id)}"><span class="en">${esc(t('seasonShort'))}${e.season} ${esc(t('epShort'))}${e.ep || '·'}</span><b>${esc(e.name)}</b>${e.dur ? `<span class="meta">${Math.round(e.dur / 60)} ${esc(t('min'))}</span>` : ''}${ico('play')}</button>`).join('')}</div>`;
+  });
+  return html;
+}
+function viewFavs() {
+  const g = gate(); if (g) return g;
+  const list = ALL.filter(c => favs.has(c.id));
+  const head = `<header class="vh"><h1>${esc(t('favs'))}</h1></header>`;
+  if (!list.length) return head + `<div class="empty">${ico('star')}<h2>${esc(t('noFavsT'))}</h2><p>${esc(t('noFavsD'))}</p><button class="btn primary" data-f data-view="home">${ico('home')}${esc(t('home'))}</button></div>`;
+  const live = list.filter(c => c.kind === 'live'), vod = list.filter(c => c.kind !== 'live');
+  return head + (live.length ? secHead(t('channels'), live.length) + `<div class="grid">${live.map(card).join('')}</div>` : '') +
+    (vod.length ? secHead(t('moviesAndSeries'), vod.length) + `<div class="grid p">${vod.map(pcard).join('')}</div>` : '');
+}
+function viewGuide() {
+  const g = gate(); if (g) return g;
+  const now = new Date(), rows = CH.slice(0, 40).map(ch => {
+    const tl = timeline(ch, now, 6);
+    const cells = !tl.length ? `<button class="g-cell now" data-f data-ch="${esc(ch.id)}" style="width:20rem"><span class="t">${esc(t('onAir'))}</span><b>${esc(ch.name)}</b></button>` :
+      tl.map((p, i) => { const w = clamp((p.end - p.start) / 6e4 * 0.24, 13, 26).toFixed(1);
+        return `<button class="g-cell${i ? '' : ' now'}" data-f data-ch="${esc(ch.id)}" style="width:${w}rem"><span class="t">${hm(p.start)} – ${hm(p.end)}${i ? '' : `<i>${esc(t('nowBadge'))}</i>`}</span><b>${esc(p.title)}</b>${i ? '' : `<i class="bar"><u style="width:${pct(p).toFixed(0)}%"></u></i>`}</button>`; }).join('');
+    return `<div class="g-row"><button class="g-ch" data-f data-ch="${esc(ch.id)}">${logoImg(ch)}<div><b>${esc(ch.name)}</b><small>${esc(t('ch'))} ${numOf(ch)}${ch.status === 'offline' ? ' · ' + esc(t('offlineTag')) : ''}</small></div></button><div class="g-track">${cells}</div></div>`;
+  }).join('');
+  return `<header class="vh"><div class="eyebrow">${esc(t('today'))} · ${hm(now)}</div><h1>${esc(t('guide'))}</h1></header>${CH.length ? rows : emptyKind()}`;
+}
+function searchResults() {
+  const q = norm(query).trim();
+  if (!q) return `<p class="sub" style="margin:1rem .6rem">${esc(t('searchHint'))}</p>`;
+  const ch = CH.filter(c => norm(c.name).includes(q)).slice(0, 24);
+  const mv = MOV.filter(c => norm(c.name).includes(q)).slice(0, 36);
+  const sr = SERIES.filter(s => norm(s.name).includes(q)).slice(0, 36);
+  if (!ch.length && !mv.length && !sr.length) return `<p class="sub" style="margin:1rem .6rem">${esc(t('searchNone'))}</p>`;
+  return (ch.length ? secHead(t('live'), ch.length) + `<div class="grid">${ch.map(card).join('')}</div>` : '') +
+    (mv.length ? secHead(t('movies'), mv.length) + `<div class="grid p">${mv.map(pcard).join('')}</div>` : '') +
+    (sr.length ? secHead(t('series'), sr.length) + `<div class="grid p">${sr.map(scard).join('')}</div>` : '');
+}
+function viewSearch() {
+  return `<header class="vh"><h1>${esc(t('search'))}</h1></header>
+    <input id="q" class="inp" data-f type="search" autocomplete="off" placeholder="${esc(t('searchPh'))}" value="${esc(query)}"><div id="qres">${searchResults()}</div>`;
+}
+
+const SETS = [
+  { k: 'lang', opts: ['pt', 'en'], label: v => ({ pt: 'Português (Brasil)', en: 'English' }[v]) },
+  { k: 'quality', opts: ['auto', '720', '1080', '2160'], label: v => v === 'auto' ? t('auto') : v === '2160' ? t('q4k') : v + 'p' },
+  { k: 'autoplay', opts: [false, true], label: v => v ? t('on') : t('off'), hint: 'autoHint' },
+  { k: 'subs', opts: [false, true], label: v => v ? t('on') : t('off'), hint: 'subsHint' },
+  { k: 'theme', opts: ['dark', 'light', 'auto'], label: v => t(v) },
+  { k: 'hideDead', opts: [false, true], label: v => v ? t('on') : t('off'), hint: 'hideDeadHint' },
+  { k: 'autoUpdate', opts: [false, true], label: v => v ? t('on') : t('off'), hint: 'autoUpdateHint' }
+];
+function viewSettings() {
+  const rows = SETS.map(s => `<button class="srow" data-f data-set="${s.k}"><span><b>${esc(t(s.k))}</b>${s.hint ? `<br><small>${esc(t(s.hint))}</small>` : ''}</span><span class="val">${ico('back')}${esc(s.label(S[s.k]))}${ico('fwd')}</span></button>`).join('');
+  const hasPl = !!store.get('plrows', null);
+  return `<header class="vh"><h1>${esc(t('settings'))}</h1></header>${rows}
+  <button class="srow" data-f data-view="import"><b>${esc(t('plRow'))}</b><span class="val">${hasPl ? ALL.length + ' ' + esc(t('plActive')) : ''}${ico('fwd')}</span></button>
+  <button class="srow" data-f data-act="verify"><b>${esc(t('verify'))}</b><span class="val" id="vset"></span></button>
+  ${store.get('plurl', '') ? `<button class="srow" data-f data-act="plrefresh"><b>${esc(t('plRefresh'))}</b></button>` : ''}
+  ${hasPl ? `<button class="srow" data-f data-act="plremove"><b>${esc(t('plRemove'))}</b></button>` : ''}
+  ${hidden.size ? `<button class="srow" data-f data-act="restore"><b>${esc(t('restoreRow'))}</b><span class="val">${hidden.size}</span></button>` : ''}
+  <button class="srow" data-f data-act="about"><b>${esc(t('about'))}</b><span class="val">${esc(APP.name)} ${esc(APP.version)}</span></button>
+  ${aboutOpen ? `<div class="about">${mascot('point')}<div><b>${esc(APP.name)} ${esc(APP.version)}</b> ${esc(t('aboutText'))}</div></div>` : ''}`;
+}
+function viewImport() {
+  return `<header class="vh"><h1>${esc(t('plTitle'))}</h1><p class="sub" style="max-width:46rem">${esc(t('plSub'))}</p></header>
+  <input id="plUrl" class="inp" data-f type="url" inputmode="url" autocomplete="off" placeholder="${esc(t('plUrl'))}" value="${esc(store.get('plurl', ''))}">
+  <textarea id="plText" class="inp" data-f rows="5" placeholder="${esc(t('plText'))}"></textarea>
+  <div class="pbtns"><button class="btn primary" data-f data-act="plimport">${esc(t('plImport'))}</button><button class="btn" data-f data-act="plclear">${esc(t('plClear'))}</button></div>
+  <p class="sub" id="plMsg" style="margin:0 .6rem" role="status"></p>`;
+}
+function addonCard(a) {
+  const enabled = !!a.enabled, caps = (a.capabilities || []).join(', ') || '—';
+  const compat = a.compatibility || {}, compatText = `${compat.minAppVersion || '—'}${compat.maxAppVersion ? ' – ' + compat.maxAppVersion : '+'}`;
+  const origin = a._originHost || (() => { try { return new URL(a._manifestUrl).host; } catch (e) { return ''; } })();
+  const icon = a.iconUrl ? addonUrl(a.iconUrl, a) : null;
+  const update = ADDON_UPDATES.find(x => x.id === a.id && x.available), cached = ADDON_CACHED.has(a.id);
+  return `<article class="addon-card"><div class="addon-title"><div class="addon-icon">${icon ? `<img src="${esc(icon)}" alt="" onerror="this.remove()">` : esc(String(a.name || 'A').slice(0, 1).toUpperCase())}</div><div><h2>${esc(a.name)}</h2><div class="addon-meta">v${esc(a.version)} · ${esc(a.developer || '')}</div></div></div>
+    <p class="addon-desc">${esc(a.description || '')}</p><div class="addon-meta"><b>${esc(at('compat'))}:</b> ${esc(compatText)} · ${esc(at('capabilities'))}: ${esc(caps)}</div>
+    <span class="addon-badge">${esc(a._integrationType === 'adapted' ? kt('adapted') : kt('native'))}</span>${a._demo ? `<span class="addon-badge">${esc(at('demo'))}</span>` : ''}${cached ? `<span class="addon-badge">${esc(at('offline'))}</span>` : ''}${update ? `<span class="addon-badge">${esc(at('updateAvailable'))}: ${esc(update.newVersion)}</span>` : ''}
+    <details><summary data-f>Detalhes e permissões</summary><p>${esc(a.description || '')}</p><div class="addon-meta"><b>${esc(at('repository'))}:</b> ${esc(origin || (a._demo ? 'RuivoTV demo local' : '—'))}<br><b>${esc(at('permissions'))}:</b> ${esc((a.permissions || []).join(', ') || '—')}<br><b>${esc(at('category'))}:</b> ${esc((a.categories || []).join(', ') || '—')}<br><b>${esc(at('capabilities'))}:</b> ${esc(caps)}<br><b>${esc(t('addonHosts'))}:</b> ${esc((a.allowedHosts || []).join(', '))}<br>${a.releaseNotes ? `<b>${esc(at('changeLog'))}:</b> ${esc(a.releaseNotes)}` : ''}</div></details>
+    <div class="addon-status">${esc(enabled ? t('addonEnabled') : t('addonDisabled'))}${ADDON_LOADING.has(a.id) ? ' · ' + esc(t('addonLoading')) : ''}${ADDON_ERRORS[a.id] ? ' · ' + esc(t('addonFailed')) + ': ' + esc(ADDON_ERRORS[a.id]) : ''}</div>
+    <div class="addon-actions"><button class="btn sm ${enabled ? '' : 'primary'}" data-f data-act="addon-toggle" data-addonid="${esc(a.id)}" data-enabled="${enabled ? '1' : '0'}">${esc(enabled ? t('addonDisable') : t('addonEnable'))}</button>
+    ${enabled ? `<button class="btn sm" data-f data-act="addon-refresh" data-addonid="${esc(a.id)}">${esc(t('addonRefresh'))}</button>` : ''}
+    <button class="btn sm" data-f data-act="addon-update" data-addonid="${esc(a.id)}">${esc(update ? at('updateAvailable') : t('addonUpdate'))}</button>
+    <button class="btn sm" data-f data-act="addon-remove" data-addonid="${esc(a.id)}">${esc(t('addonRemove'))}</button></div></article>`;
+}
+function addonRepoCard(a) {
+  const installed = ADDONS.some(x => x.id === a.id), category = a.category || (a.categories || []).join(', ') || '—';
+  const isPackage = !!a.packageUrl;
+  return `<article class="addon-card"><div class="addon-title"><div class="addon-icon">${esc(String(a.name || 'A').slice(0,1).toUpperCase())}</div><div><h2>${esc(a.name)}</h2><div class="addon-meta">v${esc(a.version || '—')} · ${esc(a.developer || '')}</div></div></div><span class="addon-badge">${esc(kt('native'))}</span>
+    <p class="addon-desc">${esc(a.description || '')}</p><div class="addon-meta">${esc(at('category'))}: ${esc(category)}<br>${esc(at('repository'))}: ${esc(a.repositoryName || '')}</div>
+    <div class="addon-actions">${installed ? `<span class="addon-badge">${esc(at('installDuplicate'))}</span>` : `<button class="btn sm primary" data-f data-act="addon-repo-preview" data-index="${ADDON_REPO_ITEMS.indexOf(a)}">${esc(at('installFromRepo'))}</button>`}</div></article>`;
+}
+function repoCards() {
+  return ADDON_REPOS.length ? ADDON_REPOS.map(r => `<article class="addon-repo"><div class="addon-row"><div style="flex:1;min-width:12rem"><b>${esc(r.name)}</b><div class="addon-meta">${esc(r.url)}</div><small>${esc(at('lastSync'))}: ${r.lastSync ? esc(new Date(r.lastSync).toLocaleString()) : esc(at('never'))}${r.lastError ? ' · ' + esc(r.lastError) : ''}</small></div><button class="btn sm" data-f data-act="repo-remove" data-url="${esc(r.url)}">${esc(at('removeRepo'))}</button></div></article>`).join('') : `<p class="addon-note">${esc(at('noRepository'))}</p>`;
+}
+const KODI_TEXT = {
+  pt: {tab:'Compatibilidade', title:'Analisar addon Kodi', subtitle:'Inspeção estática de um ZIP por HTTPS. O Ruivo TV não executa Python, não extrai arquivos do pacote e não segue URLs encontradas no código.', url:'URL HTTPS direta do ZIP Kodi', analyze:'Analisar sem executar', native:'Nativo Ruivo', adapted:'Adaptado', incompatible:'Incompatível', noAdapters:'Nenhuma adaptação Kodi autorizada está registrada no app.', registry:'Explorar adaptações', brazuca:'Brazuca Play', brazucaReason:'Não é possível executar o addon original dentro do Ruivo TV: ele depende do runtime Kodi e das APIs de navegação e reprodução que não existem neste app. Esta tela apenas analisa o pacote estaticamente; não executa seu código nem testa streams. Para usar o addon original, instale-o e execute-o no Kodi oficial, em separado. Não foi confirmada uma API/feed público autorizado para integração direta.', permissionNote:'A análise não concede permissões. APIs encontradas são apenas referências estáticas.', noAnalysis:'Cole uma URL HTTPS direta para um ZIP Kodi.', httpsOnly:'Informe uma URL HTTPS direta para o ZIP.', analyzing:'Analisando pacote…', notDeclared:'Não declarado', noKodiApis:'Nenhuma referência reconhecida', scanOnly:'Inspeção estática — não é aprovação legal, garantia de segurança ou teste de reprodução.', urlCount:'URLs literais encontradas (não visitadas)', dynamic:'Padrões de carregamento/execução dinâmica detectados', source:'Fonte declarada', entries:'Entradas', python:'Arquivos Python', apiFiles:'Arquivos com APIs Kodi', dependencies:'Dependências', extensions:'Extensões Kodi', license:'Licença no manifesto', hash:'SHA-256 do pacote', verified:'Fonte/API autorizada', yes:'Sim', no:'Não'},
+  en: {tab:'Compatibility', title:'Analyze Kodi add-on', subtitle:'Static inspection of an HTTPS ZIP. Ruivo TV does not execute Python, extract package files, or follow URLs found in source code.', url:'Direct HTTPS URL to Kodi ZIP', analyze:'Analyze without executing', native:'Ruivo native', adapted:'Adapted', incompatible:'Incompatible', noAdapters:'No authorized Kodi adaptations are registered in the app.', registry:'Explore adaptations', brazuca:'Brazuca Play', brazucaReason:'The original add-on cannot run inside Ruivo TV: it depends on the Kodi runtime and navigation/playback APIs that this app does not provide. This screen only inspects the package statically; it does not execute code or test streams. To use the original add-on, install and run it separately in the official Kodi app. No authorized public API/feed for direct integration has been confirmed.', permissionNote:'Analysis grants no permissions. Detected APIs are static references only.', noAnalysis:'Paste a direct HTTPS URL to a Kodi ZIP.', httpsOnly:'Enter a direct HTTPS URL to the ZIP.', analyzing:'Analyzing package…', notDeclared:'Not declared', noKodiApis:'No recognized references', scanOnly:'Static inspection — not legal approval, a security guarantee, or a playback test.', urlCount:'Literal URLs found (not visited)', dynamic:'Dynamic loading/execution patterns detected', source:'Declared source', entries:'Entries', python:'Python files', apiFiles:'Files with Kodi APIs', dependencies:'Dependencies', extensions:'Kodi extensions', license:'Manifest license', hash:'Package SHA-256', verified:'Authorized source/API', yes:'Yes', no:'No'}
+};
+const kt = key => (KODI_TEXT[S.lang] || KODI_TEXT.pt)[key] || KODI_TEXT.pt[key] || key;
+let KODI_ANALYSIS = null, KODI_ANALYSIS_REQUEST_ID = '';
+function kodiAnalysisCard(r) {
+  if (!r) return '';
+  const status = r.status === 'adapted' ? kt('adapted') : r.status === 'native' ? kt('native') : kt('incompatible');
+  const list = values => Array.isArray(values) && values.length ? values.map(v => esc(String(v))).join(', ') : '—';
+  return `<article class="addon-card"><div class="addon-title"><div><h2>${esc(r.name || 'Kodi add-on')}</h2><div class="addon-meta">${esc(r.id || '')} · v${esc(r.version || '—')} · ${esc(r.provider || '')}</div></div></div><span class="addon-badge">${esc(status)}</span><p class="addon-desc">${esc(r.reason || '')}</p><div class="addon-meta"><b>${esc(kt('dependencies'))}:</b> ${list(r.dependencies)}<br><b>${esc(kt('extensions'))}:</b> ${list(r.extensionPoints)}<br><b>APIs:</b> ${list(r.kodiApis)}<br><b>${esc(kt('python'))}:</b> ${esc(r.pythonFileCount || 0)} · <b>${esc(kt('apiFiles'))}:</b> ${esc(r.pythonFilesWithKodiApi || 0)}<br><b>${esc(kt('license'))}:</b> ${esc(r.declaredLicense || kt('notDeclared'))}<br><b>${esc(kt('urlCount'))}:</b> ${esc(r.candidateUrlLiteralCount || 0)}<br><b>${esc(kt('dynamic'))}:</b> ${esc(r.dynamicCodeDetected ? kt('yes') : kt('no'))}<br><b>${esc(kt('entries'))}:</b> ${esc(r.archiveEntryCount || 0)} · <b>SHA-256:</b> ${esc(r.sha256 || '')}<br><b>${esc(at('permissions'))}:</b> ${esc(kt('permissionNote'))}</div><p class="addon-note">${esc(kt('scanOnly'))}</p></article>`;
+}
+function addonTabs() {
+  const tabs = [['explore',at('explore')],['installed',at('installed')],['install',at('install')],['repos',at('repos')],['updates',at('updates')],['compatibility',kt('tab')]];
+  return `<div class="addon-tabs">${tabs.map(([id,label]) => `<button class="btn sm${ADDON_TAB===id?' on':''}" data-f data-act="addon-tab" data-tab="${id}">${esc(label)}</button>`).join('')}</div>`;
+}
+function viewAddons() {
+  const search = `<input id="addonSearch" class="inp" data-f type="search" placeholder="${esc(at('search'))}" value="${esc(ADDON_QUERY)}">`;
+  let body = '';
+  if (ADDON_TAB === 'installed') body = ADDONS.length ? `<div class="addon-list">${ADDONS.map(addonCard).join('')}</div>` : `<div class="empty"><h2>${esc(t('addonNone'))}</h2><p>${esc(t('addonHint'))}</p></div>`;
+  else if (ADDON_TAB === 'install') body = `<p class="addon-note">${esc(at('trust'))}</p><div class="addon-row addon-repo"><input id="addonManifestUrl" class="inp" data-f type="url" inputmode="url" autocomplete="off" placeholder="${esc(at('manifestUrl'))}"><button class="btn primary" data-f data-act="addon-install">${ico('plus')}${esc(at('validate'))}</button></div>
+    ${ADDON_PREVIEW ? `<article class="addon-preview"><h2>${esc(ADDON_PREVIEW.name)}</h2><p>${esc(ADDON_PREVIEW.description || '')}</p><div class="addon-meta">${esc(ADDON_PREVIEW.developer || '')} · v${esc(ADDON_PREVIEW.version || '')}<br>${esc(at('compat'))}: ${esc((ADDON_PREVIEW.compatibility||{}).minAppVersion || '—')}<br>${esc(at('permissions'))}: ${esc((ADDON_PREVIEW.permissions||[]).join(', '))}<br>${esc(at('capabilities'))}: ${esc((ADDON_PREVIEW.capabilities||[]).join(', '))}<br>${esc(t('addonHosts'))}: ${esc((ADDON_PREVIEW.allowedHosts||[]).join(', '))}<br>${esc(at('repository'))}: ${esc(ADDON_PREVIEW._originHost || '')}${ADDON_PREVIEW.packageSha256 ? `<br>SHA-256: ${esc(ADDON_PREVIEW.packageSha256)}` : ''}${ADDON_PREVIEW.releaseNotes ? `<br>${esc(at('changeLog'))}: ${esc(ADDON_PREVIEW.releaseNotes)}` : ''}</div><p class="addon-note">${esc(ADDON_PREVIEW.trustWarning || at('trust'))}</p><div class="addon-actions"><button class="btn primary" data-f data-act="addon-confirm">${esc(ADDON_PREVIEW.operation==='update'?at('confirmUpdate'):at('confirm'))}</button><button class="btn" data-f data-act="addon-cancel-preview">${esc(at('cancel'))}</button></div></article>` : ''}`;
+  else if (ADDON_TAB === 'repos') body = `<div class="addon-repo"><p class="addon-note">${esc(at('trust'))}</p><div class="addon-row"><input id="repoUrl" class="inp" data-f type="url" placeholder="https://exemplo.org/ruivo-repository.json"><button class="btn primary" data-f data-act="repo-add">${esc(at('addRepo'))}</button><button class="btn" data-f data-act="repo-sync">${esc(at('sync'))}</button></div></div>${repoCards()}`;
+  else if (ADDON_TAB === 'updates') body = `<div class="pbtns"><button class="btn primary" data-f data-act="addon-check-updates">${esc(at('checkUpdates'))}</button></div>${ADDON_UPDATES.length ? `<div class="addon-list">${ADDON_UPDATES.map(u => {const a=ADDONS.find(x=>x.id===u.id);return `<article class="addon-card"><h2>${esc(a?a.name:u.id)}</h2><div class="addon-meta">${esc(u.currentVersion||'')} → ${esc(u.newVersion||'')}</div>${u.error?`<p class="addon-note">${esc(u.error)}</p>`:''}${u.available?`<p>${esc(u.releaseNotes||'')}</p><button class="btn primary sm" data-f data-act="addon-update" data-addonid="${esc(u.id)}">${esc(t('addonUpdate'))}</button>`:''}</article>`;}).join('')}</div>`:`<p class="addon-note">${esc(at('noUpdates'))}</p>`}`;
+  else if (ADDON_TAB === 'compatibility') body = `<header class="vh"><h2>${esc(kt('title'))}</h2><p class="sub">${esc(kt('subtitle'))}</p></header><div class="addon-repo"><div class="addon-row"><input id="kodiPackageUrl" class="inp" data-f type="url" inputmode="url" autocomplete="off" placeholder="${esc(kt('url'))}"><button class="btn primary" data-f data-act="kodi-analyze">${esc(kt('analyze'))}</button></div><p class="addon-note">${esc(kt('noAnalysis'))} ${esc(kt('scanOnly'))}</p></div><article class="addon-card"><h2>${esc(kt('registry'))}</h2><span class="addon-badge">${esc(kt('incompatible'))}</span><p class="addon-desc">${esc(kt('noAdapters'))}</p></article><article class="addon-card"><h2>${esc(kt('brazuca'))}</h2><span class="addon-badge">${esc(kt('incompatible'))}</span><p class="addon-desc">${esc(kt('brazucaReason'))}</p></article>${kodiAnalysisCard(KODI_ANALYSIS)}`;
+  else {
+    const q = ADDON_QUERY.toLocaleLowerCase();
+    const matches = ADDON_REPO_ITEMS.filter(x => !q || `${x.name} ${x.description} ${x.category} ${x.developer}`.toLocaleLowerCase().includes(q));
+    const cats = [...new Set(ADDON_REPO_ITEMS.map(x=>x.category).filter(Boolean))];
+    body = `<div class="addon-row" style="margin:0 .6rem">${search}${cats.length?`<select class="inp" id="addonCategory" data-f><option value="all">${esc(at('all'))} ${esc(at('category').toLowerCase())}</option>${cats.map(c=>`<option value="${esc(c)}"${ADDON_CATEGORY===c?' selected':''}>${esc(c)}</option>`).join('')}</select>`:''}<button class="btn sm" data-f data-act="repo-sync">${esc(at('sync'))}</button><button class="btn sm" data-f data-act="addon-demo">${esc(at('addDemo'))}</button></div>${matches.length?`<div class="addon-grid">${matches.filter(x=>ADDON_CATEGORY==='all'||x.category===ADDON_CATEGORY).map(addonRepoCard).join('')}</div>`:`<div class="empty"><h2>${esc(at('noResults'))}</h2><p>${esc(at('noRepos'))}</p><button class="btn" data-f data-act="addon-tab" data-tab="repos">${esc(at('repos'))}</button></div>`}`;
+  }
+  return `<header class="vh"><div class="eyebrow">RUIVO TV</div><h1>${esc(t('addonTitle'))}</h1><p class="sub">${esc(t('addonNetworkNote'))}</p></header>${addonTabs()}${ADDON_BUSY?`<div class="addon-progress" role="status">${esc(ADDON_BUSY_TEXT||at('progress'))}</div>`:''}<p class="addon-note" id="addonMsg" role="status">${esc(ADDON_MESSAGE)}</p>${body}`;
+}
+const VIEWS = { home: viewHome, live: viewLive, movies: viewMovies, series: viewSeries, show: viewShow, favs: viewFavs, guide: viewGuide, search: viewSearch, settings: viewSettings, import: viewImport, addons: viewAddons };
+
+function addonNative(action, params) {
+  if (!window.__RUIVO_ANDROID__) { toast(t('addonAndroidOnly')); return false; }
+  const id = 'addon-' + (++addonReqSeq) + '-' + Date.now();
+  if (action === 'kodi-analyze') KODI_ANALYSIS_REQUEST_ID = id;
+  const q = new URLSearchParams(Object.assign({ requestId: id }, params || {}));
+  window.location.href = 'ruivo-addon://' + action + '?' + q.toString();
+  return true;
+}
+function addonBusyCall(action, params, label) {
+  if (!window.__RUIVO_ANDROID__) { toast(t('addonAndroidOnly')); return false; }
+  ADDON_BUSY = true; ADDON_BUSY_TEXT = label || at('progress'); ADDON_MESSAGE = '';
+  renderKeep(); return addonNative(action, params);
+}
+function addonLoadList() { if (window.__RUIVO_ANDROID__) { addonNative('list'); addonNative('repo-list'); } }
+function addonField(item, path) {
+  if (!path) return undefined;
+  return String(path).split('.').reduce((v, k) => v == null || k === '__proto__' || k === 'constructor' ? undefined : v[k], item);
+}
+function addonUrl(raw, addon) {
+  if (typeof raw !== 'string' || raw.length > 2048) return null;
+  try {
+    const u = new URL(raw), hosts = (addon.allowedHosts || []).map(x => String(x).toLowerCase());
+    if (u.protocol !== 'https:' || u.username || u.password || !hosts.includes(u.hostname.toLowerCase())) return null;
+    return u.href;
+  } catch (e) { return null; }
+}
+function normalizeAddonCatalog(addon, payload) {
+  const cfg = addon.catalog || {}, fields = cfg.fields || {};
+  let list = addonField(payload, cfg.itemsPath || 'items');
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 5000).map(raw => {
+    const sourceId = addonField(raw, fields.id), name = addonField(raw, fields.name), rawKind = String(addonField(raw, fields.kind) || '').toLowerCase();
+    const kind = rawKind === 'live' ? 'live' : (rawKind === 'movie' || rawKind === 'film') ? 'movie' : (rawKind === 'episode' || rawKind === 'series') ? 'episode' : '';
+    const url = addonUrl(addonField(raw, fields.url), addon), logo = fields.logo && (addon.permissions || []).includes('images.read') ? addonUrl(addonField(raw, fields.logo), addon) : null;
+    const capability = kind === 'live' ? 'live' : kind === 'movie' ? 'movies' : 'series';
+    if (!sourceId || !name || !kind || !url || !(addon.permissions || []).includes('stream.play') || !(addon.capabilities || []).includes(capability)) return null;
+    const itemId = String(addon.id) + ':' + String(sourceId);
+    if (itemId.length > 240) return null;
+    const series = kind === 'episode' ? String(addonField(raw, fields.series) || '') : '';
+    if (kind === 'episode' && !series) return null;
+    const number = parseInt(addonField(raw, fields.number), 10) || 0;
+    const season = parseInt(addonField(raw, fields.season), 10) || 0;
+    const ep = parseInt(addonField(raw, fields.episode), 10) || 0;
+    const dur = Math.max(0, parseInt(addonField(raw, fields.duration), 10) || 0);
+    const year = Math.max(0, parseInt(addonField(raw, fields.year), 10) || 0), rating = String(addonField(raw, fields.rating) || '').slice(0, 24);
+    const description = String(addonField(raw, fields.description) || '').slice(0, 2000);
+    const scheduleRaw = fields.schedule ? addonField(raw, fields.schedule) : [];
+    const schedule = Array.isArray(scheduleRaw) ? scheduleRaw.slice(0, 96).map(x => Array.isArray(x) ? [String(x[0] || ''), String(x[1] || '').slice(0, 200)] : null).filter(x => x && /^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(x[0]) && x[1]) : [];
+    return { id: itemId, addonId: addon.id, addonName: addon.name, name: String(name).slice(0, 200), kind, category: String(addonField(raw, fields.category) || (kind === 'live' ? 'Addon' : kind === 'movie' ? t('movies') : t('series'))).slice(0, 120), logo, number, status: 'online', dur, series, season, ep, year, rating, description, urls: [url], stream: { type: streamType(url), url, alts: [] }, schedule };
+  }).filter(Boolean);
+}
+function loadAddonCatalogs() {
+  ADDONS.filter(a => a.enabled).forEach(a => {
+    if (ADDON_LOADING.has(a.id)) return;
+    ADDON_LOADING.add(a.id); addonNative('catalog', { id: a.id });
+  });
+}
+window.__addonBridgeResult = function(requestId, operation, ok, payload) {
+  if (operation === 'list') {
+    ADDONS = payload && Array.isArray(payload.items) ? payload.items : [];
+    const enabled = new Set(ADDONS.filter(a => a.enabled).map(a => a.id));
+    for (const id of [...ADDON_CATALOGS.keys()]) if (!enabled.has(id)) ADDON_CATALOGS.delete(id);
+    rebuild(); renderKeep(); loadAddonCatalogs(); return;
+  }
+  if (operation === 'catalog') {
+    const id = payload && (payload.manifest ? payload.manifest.id : payload.id);
+    if (id) {
+      ADDON_LOADING.delete(id);
+      const active = ADDONS.some(a => a.id === id && a.enabled);
+      if (ok && active) { const items = normalizeAddonCatalog(payload.manifest, payload.catalog); ADDON_CATALOGS.set(id, items); delete ADDON_ERRORS[id]; if (payload.cached) ADDON_CACHED.add(id); else ADDON_CACHED.delete(id); if (!items.length) ADDON_ERRORS[id] = t('addonNoApi'); }
+      else if (!active) ADDON_CATALOGS.delete(id);
+      else ADDON_ERRORS[id] = payload && payload.error ? String(payload.error) : t('addonFailed');
+      rebuild(); if (view === 'addons' || view === 'search' || view === 'home') renderKeep();
+    }
+    return;
+  }
+  if (operation === 'kodi-analysis') {
+    if (requestId !== KODI_ANALYSIS_REQUEST_ID) return;
+    ADDON_BUSY = false; ADDON_BUSY_TEXT = '';
+    if (ok) { KODI_ANALYSIS = payload; ADDON_MESSAGE = ''; }
+    else { KODI_ANALYSIS = null; ADDON_MESSAGE = payload && payload.error ? String(payload.error) : t('addonFailed'); }
+    renderKeep(); return;
+  }
+  if (operation === 'preview') {
+    ADDON_BUSY = false; ADDON_BUSY_TEXT = '';
+    if (ok) { ADDON_PREVIEW = payload; ADDON_MESSAGE = ''; }
+    else { ADDON_PREVIEW = null; ADDON_MESSAGE = payload && payload.error ? String(payload.error) : t('addonFailed'); }
+    renderKeep(); return;
+  }
+  if (operation === 'repositories') {
+    ADDON_BUSY = false; ADDON_BUSY_TEXT = '';
+    if (ok) { ADDON_REPOS = Array.isArray(payload.repositories) ? payload.repositories : []; ADDON_REPO_ITEMS = Array.isArray(payload.items) ? payload.items : []; ADDON_MESSAGE = ''; }
+    else ADDON_MESSAGE = payload && payload.error ? String(payload.error) : t('addonFailed');
+    if (view === 'addons') renderKeep(); return;
+  }
+  if (operation === 'updates') {
+    ADDON_BUSY = false; ADDON_BUSY_TEXT = '';
+    ADDON_UPDATES = ok && payload && Array.isArray(payload.items) ? payload.items : [];
+    if (!ok) ADDON_MESSAGE = payload && payload.error ? String(payload.error) : t('addonFailed');
+    renderKeep(); return;
+  }
+  if (operation === 'demo') {
+    ADDON_BUSY = false; ADDON_BUSY_TEXT = '';
+    if (ok) toast(t('addonInstallOk'), 2800); else ADDON_MESSAGE = payload && payload.error ? String(payload.error) : t('addonFailed');
+    addonLoadList(); return;
+  }
+  if (operation === 'install' || operation === 'update') {
+    ADDON_BUSY = false; ADDON_BUSY_TEXT = ''; ADDON_PREVIEW = null;
+    if (ok) { ADDON_MESSAGE = ''; toast(t(operation === 'install' ? 'addonInstallOk' : 'addonUpdateOk'), 2800); }
+    else { ADDON_MESSAGE = payload && payload.error ? String(payload.error) : t('addonFailed'); toast(ADDON_MESSAGE, 3500); }
+    addonLoadList(); return;
+  }
+  if (operation === 'enable') {
+    const id = payload && payload.id;
+    if (!ok && id) ADDON_ERRORS[id] = payload.error || t('addonFailed');
+    if (id && payload.enabled === false) { ADDON_CATALOGS.delete(id); ADDON_LOADING.delete(id); rebuild(); }
+    addonLoadList(); return;
+  }
+  if (operation === 'remove') {
+    if (ok && payload.id) { ADDON_CATALOGS.delete(payload.id); ADDON_LOADING.delete(payload.id); ADDON_CACHED.delete(payload.id); delete ADDON_ERRORS[payload.id]; rebuild(); toast(t('addonRemoved')); }
+    else toast(payload && payload.error ? payload.error : t('addonFailed'));
+    addonLoadList(); return;
+  }
+};
+window.__ruivoNativeReady = function() { window.__RUIVO_ANDROID__ = true; addonLoadList(); };
+
+function render() { renderShell(); $('#main').innerHTML = VIEWS[view](); updateVStat(); }
+function focusKey(el) {
+  if (!el || !el.dataset) return null;
+  for (const a of ['ch', 'series', 'view', 'cat', 'set', 'index', 'addonid', 'url', 'tab', 'act', 'fav']) if (el.dataset[a]) return [a, el.dataset[a], el.closest('.g-track, .row-h, .grid') ? 'c' : ''];
+  return null;
+}
+function findByKey(k) {
+  if (!k) return null;
+  const all = [...document.querySelectorAll(`#app [data-${k[0]}]`)].filter(e => e.dataset[k[0]] === k[1]);
+  return all.find(e => !!e.closest('.g-track, .row-h, .grid') === (k[2] === 'c')) || all[0] || null;
+}
+function focusEl(el) {
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  try { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' }); } catch (e) { el.scrollIntoView(); }
+}
+function renderKeep() {
+  const key = focusKey(document.activeElement), sc = $('#main').scrollTop;
+  render(); $('#main').scrollTop = sc;
+  const el = findByKey(key); if (el) el.focus({ preventScroll: true });
+}
+function go(v) {
+  if (!VIEWS[v]) return;
+  view = v; aboutOpen = false;
+  render(); $('#main').scrollTop = 0;
+  if (v === 'addons' && window.__RUIVO_ANDROID__) addonLoadList();
+  if (v === 'import' || v === 'search') { const i = $('#main input'); if (i && !(v === 'search' && matchMedia('(hover: none)').matches)) i.focus(); }
+}
+function setCat(scope, val) {
+  cats[scope] = val; shown[scope] = 60;
+  if (view !== scope) go(scope); else { renderKeep(); }
+  const el = findByKey(['cat', scope + '|' + val, '']); if (el) el.focus({ preventScroll: true });
+  if (val !== 'all' || view === scope) $('#main').scrollTop = 0;
+}
+
+/* ---------- lista / favoritos / remoção ---------- */
+function toast(msg, ms) {
+  const el = $('#gtoast'); el.textContent = msg; el.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, ms || 1800);
+}
+function toggleFav(id) {
+  const c = byId(id); if (!c) return;
+  if (favs.has(id)) { favs.delete(id); toast(c.name + ' · ' + t('favRemoved')); } else { favs.add(id); toast(c.name + ' · ' + t('favAdded')); }
+  store.set('favs', [...favs]); Modules.onFavoritesChanged([...favs]);
+  if (playerOpen) updatePlayerFav(); else renderKeep();
+}
+function askRemove(id, btn) {
+  const c = byId(id); if (!c) return;
+  if (pendingRemove === id) {
+    pendingRemove = null;
+    hidden.add(id); store.set('hidden', [...hidden]);
+    if (favs.delete(id)) store.set('favs', [...favs]);
+    ALL = ALL.filter(x => x.id !== id); rebuild();
+    toast(c.name + ' · ' + t('removedMsg'));
+    if (playerOpen) closePlayer();
+    else { renderKeep(); const a = document.activeElement; if (!a || !a.matches || !a.matches('#main [data-f]')) { const f = $('#main [data-f]'); if (f) f.focus({ preventScroll: true }); } }
+    return;
+  }
+  pendingRemove = id;
+  if (btn) btn.classList.add('ask');
+  toast(c.name + ' · ' + t('removeAsk'), 3000);
+  clearTimeout(askRemove.t);
+  askRemove.t = setTimeout(() => { pendingRemove = null; document.querySelectorAll('.trash.ask').forEach(b => b.classList.remove('ask')); }, 3000);
+}
+function summaryText() {
+  const live = ALL.filter(c => c.kind === 'live');
+  const ok = live.filter(c => { const h = HEALTH[liveKey(c)]; return h && h[0] === 1; }).length, dead = live.filter(c => c.dead).length;
+  return (ok + dead) ? ok + ' ' + t('verOn') + ' · ' + dead + ' ' + t('verOff') : '';
+}
+function updateVStat() {
+  const txt = verifying ? t('verifying') + ' ' + vDone + '/' + vTotal + ' (' + t('stopHint') + ')' : summaryText();
+  ['#vstat', '#vset'].forEach(sel => { const el = $(sel); if (el) el.textContent = txt; });
+}
+async function probeUrl(url) {
+  const type = streamType(url);
+  if (type === 'youtube') return 1;
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, headers: { Range: 'bytes=0-4095' } });
+    if (!(r.ok || r.status === 206)) return 0;
+    const ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (type === 'file' || /^video\//.test(ct)) { try { if (r.body) r.body.cancel(); } catch (e) {} return 1; }
+    let txt = '';
+    if (r.body && r.body.getReader) { const rd = r.body.getReader(); const x = await rd.read(); try { rd.cancel(); } catch (e) {} txt = new TextDecoder().decode(x.value ? x.value.subarray(0, 2048) : new Uint8Array()); }
+    else txt = (await r.text()).slice(0, 2048);
+    if (/#EXTM3U|#EXTINF|#EXT-X/.test(txt)) return 1;
+    if (type === 'hls') return 0;
+    return /mpegurl|mp2t|octet-stream|video|audio/.test(ct) ? 1 : 0;
+  } catch (e) { return (e && e.name === 'AbortError') ? 0 : -1; }
+  finally { clearTimeout(to); }
+}
+async function verifyChannels() {
+  if (verifying) { vAbort = true; return; }
+  const list = ALL.filter(c => c.kind === 'live'); if (!list.length) return;
+  verifying = true; vAbort = false; vDone = 0; vTotal = list.length; updateVStat();
+  let idx = 0, ok = 0, dead = 0, unk = 0;
+  const worker = async () => {
+    while (!vAbort) {
+      const c = list[idx++]; if (!c) break;
+      let good = null, zeros = 0, n = 0;
+      for (const u of (c.urls || [c.stream.url])) { n++; const r = await probeUrl(u); if (r === 1) { good = u; break; } if (r === 0) zeros++; }
+      const key = liveKey(c);
+      if (good) { HEALTH[key] = [1, Date.now(), good]; ok++; }
+      else if (zeros === n) { HEALTH[key] = [0, Date.now(), '']; dead++; }
+      else { delete HEALTH[key]; unk++; }
+      vDone++; updateVStat();
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  verifying = false; store.set('health', HEALTH); rebuild();
+  toast(unk === list.length ? t('verifyUnsupported') : ok + ' ' + t('verOn') + ' · ' + dead + ' ' + t('verOff'), 3500);
+  if (!playerOpen) renderKeep(); else updateVStat();
+}
+async function refreshPlaylist(silent) {
+  const url = store.get('plurl', ''); if (!url) return;
+  try {
+    const r = await fetch(url); if (!r.ok) throw new Error('http');
+    const rows = parseM3U(await r.text()); if (!rows.length) throw new Error('empty');
+    const sig = rows.length + ':' + JSON.stringify(rows).length;
+    if (sig === store.get('plsig', '')) { if (!silent) toast(t('plSame')); return; }
+    store.set('plrows', rows); store.set('plsig', sig);
+    BASE_ALL = buildItems(rows); rebuild(); toast(rows.length + ' ' + t('plOk'));
+    if (!playerOpen) renderKeep();
+  } catch (e) { if (!silent) toast(t('plRefreshFail')); }
+}
+async function importPlaylist() {
+  const msg = $('#plMsg'), url = $('#plUrl').value.trim();
+  let text = $('#plText').value.trim();
+  msg.textContent = t('plWorking');
+  if (!text && url) {
+    try { const r = await fetch(url); if (!r.ok) throw new Error('http'); text = await r.text(); }
+    catch (e) { msg.textContent = t('plFail'); return; }
+  }
+  const rows = parseM3U(text);
+  if (!rows.length) { msg.textContent = t('plNone'); return; }
+  const saved = store.set('plrows', rows); store.set('plsig', rows.length + ':' + JSON.stringify(rows).length);
+  store.set('plurl', url); hidden.clear(); store.set('hidden', []);
+  BASE_ALL = buildItems(rows); rebuild(); cats.live = cats.movies = cats.series = 'all';
+  msg.textContent = rows.length + ' ' + t('plOk') + (saved ? '' : ' ' + t('plQuota'));
+  setTimeout(() => { go('home'); const n = $('#heroBtn'); if (n) n.focus({ preventScroll: true }); }, 900);
+}
+async function removePlaylist() {
+  store.set('plrows', null); hidden.clear(); store.set('hidden', []);
+  await loadCatalog(); toast(t('plCleared'));
+  if (view === 'import') { const m = $('#plMsg'); if (m) m.textContent = t('plCleared'); } else go('settings');
+}
+async function restoreHidden() { hidden.clear(); store.set('hidden', []); await loadCatalog(); toast(t('restored')); renderKeep(); }
+async function reloadCatalog() { loaded = false; render(); await loadCatalog(); renderKeep(); const el = $('#heroBtn') || $('#main [data-f]'); if (el) el.focus({ preventScroll: true }); }
+
+/* ---------- player ---------- */
+const player = $('#player'), vid = $('#vid');
+let playerOpen = false, cur = null, session = 0, hls = null;
+let state = 'idle', uiMode = 'hidden', uiTimer = 0, loadTimer = 0, retryTimer = 0, retries = 0, mediaRecovered = false;
+let returnKey = null, vol = clamp(store.get('vol', 0.8), 0, 1);
+vid.volume = vol;
+let ytT = 0, ytD = 0, ytVod = false;
+const isVod = c => !!c && (c.kind !== 'live' || (c === cur && ytVod));
+const POS = store.get('pos', {});
+let posSaved = 0;
+function savePos(c, t, d) {
+  if (!c || !(d > 0)) return;
+  if (t < 15 || d - t < 10) { if (POS[c.id]) { delete POS[c.id]; store.set('pos', POS); } return; }
+  const now = Date.now(); if (now - posSaved < 4000) return; posSaved = now;
+  POS[c.id] = Math.floor(t); const k = Object.keys(POS); if (k.length > 200) delete POS[k[0]];
+  store.set('pos', POS);
+}
+
+function buildControls() {
+  $('#pReveal').innerHTML = ico('more'); $('#pReveal').setAttribute('aria-label', t('showCtl'));
+  $('#pBack').innerHTML = ico('back'); $('#pBack').setAttribute('aria-label', t('backList')); $('#pBack').title = t('backList');
+  const c = (act, icon, label, cls) => `<button class="ctl${cls ? ' ' + cls : ''}" data-f data-act="${act}" id="c-${act}" aria-label="${esc(label)}" title="${esc(label)}">${ico(icon)}</button>`;
+  $('#pCtls').innerHTML =
+    c('chprev', 'prev', t('chPrev')) + c('rew', 'rew', t('rew'), 'vod-only') + c('play', 'pause', t('pause')) + c('ffw', 'ffw', t('ffw'), 'vod-only') + c('chnext', 'next', t('chNext')) +
+    c('mute', 'vol', t('mute')) + c('vdown', 'volm', t('vDown')) + `<span class="vol" id="pVol"></span>` + c('vup', 'volp', t('vUp')) +
+    c('fav', 'star', t('favAdd'), 'sp') + c('remove', 'trash', t('removeCh')) + c('full', 'full', t('fs'));
+  syncCtls();
+}
+function setIcon(btn, name, label) { btn.innerHTML = ico(name); btn.setAttribute('aria-label', label); btn.title = label; }
+function syncCtls() {
+  if (!$('#c-play')) return;
+  const paused = ytActive ? ytPaused : vid.paused, muted = ytActive ? ytMuted : vid.muted;
+  setIcon($('#c-play'), paused ? 'play' : 'pause', paused ? t('play') : t('pause'));
+  setIcon($('#c-mute'), muted ? 'mute' : 'vol', t('mute'));
+  $('#pVol').textContent = muted ? t('muted') : Math.round(vol * 100) + '%';
+  updatePlayerFav();
+}
+function updatePlayerFav() {
+  const b = $('#c-fav'); if (!b || !cur) return;
+  const on = favs.has(cur.id); b.classList.toggle('on', on);
+  b.innerHTML = on ? icoFill('star') : ico('star');
+  b.setAttribute('aria-label', on ? t('favRemove') : t('favAdd')); b.title = on ? t('favRemove') : t('favAdd');
+}
+function nextInList(dir) { const l = zapList(cur); const i = l.findIndex(c => c.id === cur.id); return l.length > 1 ? l[(i + dir + l.length) % l.length] : null; }
+function updateInfo() {
+  if (!cur) return;
+  const vod = isVod(cur); player.classList.toggle('vod', vod);
+  const pill = $('#pLive'); pill.textContent = vod ? t(cur.kind === 'episode' ? 'seriesTag' : cur.kind === 'movie' ? 'movieTag' : 'videoTag') : t('onAir'); pill.classList.toggle('vp', vod);
+  $('#pLogo').src = cur.logo || monogram(cur); $('#pLogo').dataset.fb = monogram(cur);
+  $('#pName').textContent = cur.kind === 'episode' ? cur.series : cur.name;
+  $('#pClock').textContent = hm(new Date());
+  if (vod) {
+    $('#pNum').textContent = (cur.kind === 'episode' ? `${t('seasonShort')}${cur.season} ${t('epShort')}${cur.ep} · ${cur.category}` : cur.category) + (cur.addonName ? ' · ' + cur.addonName : '');
+    $('#pNow').textContent = cur.name; onTime();
+    const nx = nextInList(1); $('#pNext').textContent = nx && nx.id !== cur.id ? t('next') + ' · ' + nx.name : '';
+  } else {
+    const tl = timeline(cur, new Date(), 2), now = tl[0], nx = tl[1];
+    $('#pNum').textContent = t('ch') + ' ' + numOf(cur) + (cur.category ? ' · ' + cur.category : '') + (cur.addonName ? ' · ' + cur.addonName : '');
+    $('#pNow').textContent = now ? now.title : cur.name;
+    $('#pBar').style.width = pct(now).toFixed(1) + '%';
+    $('#pTimes').textContent = now ? hm(now.start) + ' – ' + hm(now.end) : '';
+    $('#pNext').textContent = nx ? t('next') + ' ' + hm(nx.start) + ' · ' + nx.title : '';
+  }
+}
+function onTime() {
+  if (!playerOpen || !isVod(cur)) return;
+  const d = ytActive ? ytD : vid.duration, c = (ytActive ? ytT : vid.currentTime) || 0;
+  savePos(cur, c, d);
+  $('#pBar').style.width = (isFinite(d) && d > 0 ? clamp(c / d, 0, 1) * 100 : 0).toFixed(2) + '%';
+  $('#pTimes').textContent = mmss(c) + (isFinite(d) && d > 0 ? ' / ' + mmss(d) : '');
+}
+function setUi(mode) {
+  uiMode = mode; clearTimeout(uiTimer);
+  player.classList.toggle('ui-hidden', mode === 'hidden');
+  if (mode === 'hidden') { if (player.contains(document.activeElement)) document.activeElement.blur(); }
+  else if (!STATE_UI[state]) uiTimer = setTimeout(() => { if (mode === 'controls' && vid.paused) setUi('controls'); else setUi('hidden'); }, mode === 'banner' ? 4500 : 9000);
+}
+function showControls() {
+  setUi('controls');
+  const el = (player.contains(document.activeElement) && document.activeElement.matches('[data-f]')) ? document.activeElement : $('#c-play');
+  el.focus({ preventScroll: true });
+}
+const STATE_UI = {
+  offline: { mascot: 'sleep', icon: 'alert', title: 'offT', text: 'offD', btns: ['chnext', 'back'] },
+  unavailable: { mascot: 'shades', icon: 'alert', title: 'unT', text: 'unD', btns: ['retry', 'chnext', 'back'] },
+  error: { mascot: 'cross', icon: 'alert', title: 'errT', text: 'errD', btns: ['retry', 'chnext', 'back'] },
+  noconn: { mascot: 'coffee', icon: 'wifioff', title: 'noConnT', text: 'noConnD', btns: ['retry', 'back'] }
+};
+function setState(s, extra) {
+  state = s; const box = $('#pState'); player.classList.toggle('err', !!STATE_UI[s]);
+  if (s === 'playing') { box.innerHTML = ''; return; }
+  if (s === 'loading' || s === 'buffering' || s === 'reconnecting') {
+    const msg = s === 'loading' ? t('tuning') : s === 'reconnecting' ? t('reconnecting') + ' (' + extra + '/3)…' : '';
+    box.innerHTML = `<div class="st"><div class="spin"></div>${msg ? `<p>${esc(msg)}</p>` : ''}</div>`; return;
+  }
+  const d = STATE_UI[s]; if (!d) return;
+  const L = { retry: [t('retry'), 'retry'], chnext: [t('nextCh'), 'next'], back: [t('toList'), 'back'] };
+  box.innerHTML = `<div class="st panel" role="alert">${d.mascot ? mascot(d.mascot) : ico(d.icon)}<h2>${esc(t(d.title))}</h2><p>${esc(t(d.text))}</p><div class="btns">${d.btns.map((b, i) => `<button class="btn${i === 0 ? ' primary' : ''}" data-f data-act="${b}">${ico(L[b][1])}${esc(L[b][0])}</button>`).join('')}</div></div>`;
+  setUi('banner'); clearTimeout(uiTimer);
+  const first = box.querySelector('[data-f]'); if (first) first.focus({ preventScroll: true });
+}
+let curAlts = [], altIdx = 0, ytActive = false, ytPaused = false, ytMuted = false;
+function stopStream() {
+  clearTimeout(loadTimer); clearTimeout(retryTimer);
+  if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+  const yt = $('#yt'); if (yt.getAttribute('src')) yt.setAttribute('src', 'about:blank');
+  yt.hidden = true; $('#ytShield').hidden = true; vid.hidden = false; ytActive = false; ytPaused = false; ytMuted = false; ytT = 0; ytD = 0; ytVod = false;
+  try { vid.pause(); } catch (e) {}
+  vid.srcObject = null; vid.removeAttribute('src');
+  try { vid.load(); } catch (e) {}
+}
+function armTimer(id) {
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(() => { if (id === session && (state === 'loading' || state === 'reconnecting')) fail('unavailable', id); }, 20000);
+}
+function tune(ch) {
+  stopStream(); const id = ++session;
+  cur = ch; retries = 0; mediaRecovered = false; store.set('last', ch.id);
+  curAlts = ((ch.stream && ch.stream.alts) || []).slice(); altIdx = 0;
+  updateInfo(); updatePlayerFav(); setState('loading'); setUi('banner');
+  if (!navigator.onLine) return setState('noconn');
+  if (!Modules.canWatch(ch)) return setState('error');
+  if (ch.status === 'offline') return setState('offline');
+  const s = ch.stream; if (!s || !s.url) return setState('unavailable');
+  armTimer(id);
+  beginSource(s.url, id, (ch.urls && s.url === ch.urls[0] && s.type && s.type !== 'demo') ? s.type : null);
+}
+function beginSource(url, id, forced) {
+  const type = forced || streamType(url);
+  try { if (type === 'youtube') startYoutube(url, id); else if (type === 'file') startFile(url, id); else startHls(url, id, type === 'auto'); }
+  catch (e) { fail('error', id); }
+}
+/* tenta a próxima fonte do mesmo canal antes de mostrar erro */
+function fail(kind, id) {
+  if (id !== session) return;
+  if (altIdx < curAlts.length) {
+    const u = curAlts[altIdx++];
+    clearTimeout(retryTimer); if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+    try { vid.pause(); } catch (e) {}
+    vid.srcObject = null; vid.removeAttribute('src');
+    retries = 0; mediaRecovered = false; setState('loading'); armTimer(id); beginSource(u, id, null); return;
+  }
+  setState(kind);
+}
+function startFile(url) {
+  const p0 = cur && isVod(cur) ? POS[cur.id] : 0;
+  if (p0) vid.addEventListener('loadedmetadata', function f() { vid.removeEventListener('loadedmetadata', f); try { vid.currentTime = p0; } catch (e) {} });
+  vid.src = url; const p = vid.play(); if (p && p.catch) p.catch(() => {}); }
+function startHls(url, id, auto) {
+  let fell = false;
+  if (window.Hls && Hls.isSupported()) {
+    hls = new Hls({ lowLatencyMode: true, maxBufferLength: 20, enableWorker: true });
+    const h = hls;
+    h.on(Hls.Events.MANIFEST_PARSED, () => { applyQuality(); const p = vid.play(); if (p && p.catch) p.catch(() => {}); });
+    h.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, applySubs);
+    h.on(Hls.Events.ERROR, (ev, d) => {
+      if (id !== session || !d.fatal) return;
+      if (auto && !fell) { fell = true; try { h.destroy(); } catch (e) {} if (hls === h) hls = null; startFile(url, id); return; }
+      if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        if (retries < 2) { retries++; setState('reconnecting', retries); retryTimer = setTimeout(() => { if (id !== session || hls !== h) return; try { if (/manifest|level|audioTrack/i.test(d.details || '')) { h.loadSource(url); } else { h.startLoad(); } } catch (e) { fail('unavailable', id); } }, 1500 * retries); }
+        else fail('unavailable', id);
+      } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) { mediaRecovered = true; h.recoverMediaError(); }
+      else fail('error', id);
+    });
+    h.loadSource(url); h.attachMedia(vid);
+  } else if (vid.canPlayType('application/vnd.apple.mpegurl') || auto) startFile(url, id);
+  else fail('unavailable', id);
+}
+
+/* YouTube: exibido dentro do app por incorporação oficial */
+function ytEmbed(u) {
+  const st = cur && POS[cur.id] ? '&start=' + POS[cur.id] : '';
+  const q = 'autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=0&fs=0&enablejsapi=1' + st + (location.origin && location.origin !== 'null' ? '&origin=' + encodeURIComponent(location.origin) : '');
+  let m;
+  if ((m = u.match(/youtube\.com\/channel\/(UC[\w-]{20,})/i))) return 'https://www.youtube.com/embed/live_stream?channel=' + m[1] + '&' + q;
+  if ((m = u.match(/[?&]v=([\w-]{11})/)) || (m = u.match(/(?:youtu\.be\/|\/live\/|\/embed\/|\/shorts\/)([\w-]{11})/))) return 'https://www.youtube.com/embed/' + m[1] + '?' + q;
+  return null;
+}
+function ytCmd(func, args) { const f = $('#yt'); try { f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*'); } catch (e) {} }
+function startYoutube(url, id) {
+  const src = ytEmbed(url); if (!src) return fail('unavailable', id);
+  ytActive = true; vid.hidden = true; $('#ytShield').hidden = false;
+  const f = $('#yt'); f.hidden = false;
+  f.onload = () => { [0, 600, 1800].forEach(d => setTimeout(() => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'); } catch (e) {} }, d)); };
+  f.setAttribute('src', src);
+}
+function ytPlaying() { if (!ytActive) return; clearTimeout(loadTimer); ytPaused = false; if (state !== 'playing') { setState('playing'); setUi(uiMode === 'controls' ? 'controls' : 'banner'); } syncCtls(); }
+window.addEventListener('message', e => {
+  if (!ytActive || !/(^|\.)youtube(-nocookie)?\.com$/i.test(String(e.origin).replace(/^https?:\/\//, ''))) return;
+  let d = e.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { return; } }
+  if (!d) return;
+  if (d.event === 'onStateChange' && d.info === 1) ytPlaying();
+  else if (d.event === 'onStateChange' && d.info === 0 && ytVod) { vid.dispatchEvent(new Event('ended')); }
+  else if (d.event === 'infoDelivery' && d.info) {
+    const i = d.info;
+    if (typeof i.currentTime === 'number') ytT = i.currentTime;
+    if (typeof i.duration === 'number') ytD = i.duration;
+    if (i.playerState === 1) ytPlaying();
+    const vod = cur && cur.kind === 'live' ? (ytD > 60 && ytD - ytT > 8) : false;
+    if (cur && cur.kind === 'live' && vod !== ytVod) { ytVod = vod; updateInfo(); }
+    if (isVod(cur)) onTime();
+  }
+  else if (d.event === 'onError') fail('unavailable', session);
+});
+function applyQuality() {
+  if (!hls || !hls.levels || !hls.levels.length) return;
+  if (S.quality === 'auto') { hls.currentLevel = -1; return; }
+  const target = +S.quality; let best = -1, bh = -1;
+  hls.levels.forEach((l, i) => { if (l.height <= target && l.height > bh) { bh = l.height; best = i; } });
+  if (best < 0) { let mi = 0; hls.levels.forEach((l, i) => { if (l.height < hls.levels[mi].height) mi = i; }); best = mi; }
+  hls.currentLevel = best;
+}
+function applySubs() {
+  const tr = vid.textTracks; if (!tr) return;
+  for (let i = 0; i < tr.length; i++) tr[i].mode = (S.subs && i === 0) ? 'showing' : 'disabled';
+  if (hls) hls.subtitleDisplay = !!S.subs;
+}
+if (vid.textTracks && vid.textTracks.addEventListener) vid.textTracks.addEventListener('addtrack', applySubs);
+vid.addEventListener('playing', () => { if (!playerOpen) return; clearTimeout(loadTimer); retries = 0; setState('playing'); setUi(uiMode === 'controls' ? 'controls' : 'banner'); syncCtls(); });
+vid.addEventListener('waiting', () => { if (playerOpen && state === 'playing') setState('buffering'); });
+vid.addEventListener('pause', syncCtls); vid.addEventListener('play', syncCtls); vid.addEventListener('volumechange', syncCtls);
+vid.addEventListener('timeupdate', onTime); vid.addEventListener('loadedmetadata', onTime);
+vid.addEventListener('error', () => { if (playerOpen && vid.getAttribute('src')) fail('error', session); });
+vid.addEventListener('ended', () => { if (!playerOpen || !isVod(cur)) return; const nx = cur.kind === 'episode' ? nextInList(1) : null; if (nx && nx.id !== cur.id) tune(nx); else closePlayer(); });
+
+function openPlayer(c) {
+  if (!c) return;
+  returnKey = focusKey(document.activeElement);
+  playerOpen = true; player.hidden = false; buildControls(); tune(c);
+}
+function closePlayer() {
+  playerOpen = false; session++; stopStream(); state = 'idle';
+  player.hidden = true; player.classList.remove('err'); clearTimeout(uiTimer); $('#osd').hidden = true;
+  render();
+  const el = findByKey(returnKey) || $('#heroBtn') || $('.nav.on');
+  if (el) { el.focus({ preventScroll: true }); try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
+}
+function zapList(it) {
+  if (!it || it.kind === 'live') return CH;
+  if (it.kind === 'episode') { const s = SBY.get(norm(it.series)); return s ? s.eps : [it]; }
+  return MOV.filter(m => m.category === it.category);
+}
+function zap(dir) {
+  const base = playerOpen ? cur : byId(store.get('last', ''));
+  const list = base && base.kind !== 'live' && playerOpen ? zapList(base) : CH;
+  if (!list.length) return;
+  let i = base ? list.findIndex(c => c.id === base.id) : -1;
+  i = (i + dir + list.length) % list.length;
+  if (!playerOpen) openPlayer(list[i]); else tune(list[i]);
+}
+function osdToast(txt, ms) { const o = $('#osd'); o.textContent = txt; o.hidden = false; clearTimeout(osdToast.t); osdToast.t = setTimeout(() => { o.hidden = true; }, ms || 1300); }
+function setVol(v) { vol = clamp(v, 0, 1); vid.volume = vol; vid.muted = false; if (ytActive) { ytMuted = false; ytCmd('unMute'); ytCmd('setVolume', [Math.round(vol * 100)]); } store.set('vol', vol); osdToast(Math.round(vol * 100) + '%', 1100); syncCtls(); }
+function toggleMute() { if (ytActive) { ytMuted = !ytMuted; ytCmd(ytMuted ? 'mute' : 'unMute'); } else vid.muted = !vid.muted; const m = ytActive ? ytMuted : vid.muted; osdToast(m ? t('muted') : Math.round(vol * 100) + '%', 1100); syncCtls(); }
+function togglePlay() { if (ytActive) { ytPaused = !ytPaused; ytCmd(ytPaused ? 'pauseVideo' : 'playVideo'); syncCtls(); return; } if (vid.paused) { const p = vid.play(); if (p && p.catch) p.catch(() => {}); } else vid.pause(); }
+function seekTo(sec) { if (ytActive) { ytT = sec; ytCmd('seekTo', [sec, true]); onTime(); } else vid.currentTime = sec; }
+function seek(delta) { const d = ytActive ? ytD : vid.duration; if (!isVod(cur) || !isFinite(d) || !(d > 0)) return; seekTo(clamp((ytActive ? ytT : vid.currentTime) + delta, 0, d)); osdToast((delta > 0 ? '+' : '−') + Math.abs(delta) + 's', 900); }
+function toggleFull() {
+  try { if (document.fullscreenElement) document.exitFullscreen(); else if (document.documentElement.requestFullscreen) { const p = document.documentElement.requestFullscreen(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+}
+let digits = '', digitTimer = 0;
+function digit(d) {
+  digits += d; osdToast(digits, 2000); clearTimeout(digitTimer);
+  const commit = () => {
+    const n = parseInt(digits, 10); digits = ''; const ch = CH.find(c => c.number === n); $('#osd').hidden = true;
+    if (!ch) { toast(t('chNotFound') + ' (' + n + ')'); return; }
+    if (playerOpen) tune(ch); else openPlayer(ch);
+  };
+  if (digits.length >= 3) commit(); else digitTimer = setTimeout(commit, 1700);
+}
+function doAct(act, el) {
+  switch (act) {
+    case 'back': if (playerOpen) closePlayer(); break;
+    case 'play': togglePlay(); break;
+    case 'mute': toggleMute(); break;
+    case 'vdown': setVol(vol - 0.1); break;
+    case 'vup': setVol(vol + 0.1); break;
+    case 'rew': seek(-10); break;
+    case 'ffw': seek(10); break;
+    case 'full': toggleFull(); break;
+    case 'fav': if (cur) toggleFav(cur.id); break;
+    case 'remove': if (cur) askRemove(cur.id); break;
+    case 'chnext': zap(1); break;
+    case 'chprev': zap(-1); break;
+    case 'retry': if (cur) tune(cur); break;
+    case 'reload': reloadCatalog(); break;
+    case 'verify': verifyChannels(); break;
+    case 'plrefresh': refreshPlaylist(false); break;
+    case 'plimport': importPlaylist(); break;
+    case 'plclear': case 'plremove': removePlaylist(); break;
+    case 'restore': restoreHidden(); break;
+    case 'about': aboutOpen = !aboutOpen; renderKeep(); break;
+    case 'addon-tab': {
+      ADDON_TAB = el && el.dataset.tab || 'explore'; ADDON_MESSAGE = ''; renderKeep();
+      if (ADDON_TAB === 'explore' && !ADDON_REPO_ITEMS.length && ADDON_REPOS.length) addonBusyCall('repo-sync', {}, at('sync'));
+      break;
+    }
+    case 'addon-install': {
+      const input = $('#addonManifestUrl'), url = input ? input.value.trim() : '';
+      if (!/^https:\/\//i.test(url)) { toast(t('addonBadUrl')); break; }
+      ADDON_PREVIEW = null; addonBusyCall('preview', { url }, at('validate')); break;
+    }
+    case 'kodi-analyze': {
+      const input = $('#kodiPackageUrl'), url = input ? input.value.trim() : '';
+      if (!/^https:\/\//i.test(url)) { ADDON_MESSAGE = kt('httpsOnly'); renderKeep(); break; }
+      KODI_ANALYSIS = null; addonBusyCall('kodi-analyze', { url }, kt('analyzing')); break;
+    }
+    case 'addon-confirm': if (ADDON_PREVIEW && ADDON_PREVIEW.previewToken) addonBusyCall('install', { token: ADDON_PREVIEW.previewToken }, at('confirm')); break;
+    case 'addon-cancel-preview': ADDON_PREVIEW = null; ADDON_MESSAGE = ''; renderKeep(); break;
+    case 'repo-add': {
+      const input = $('#repoUrl'), url = input ? input.value.trim() : '';
+      if (!/^https:\/\//i.test(url)) { ADDON_MESSAGE = t('addonBadUrl'); renderKeep(); break; }
+      addonBusyCall('repo-add', { url }, at('addRepo')); break;
+    }
+    case 'repo-sync': addonBusyCall('repo-sync', {}, at('sync')); break;
+    case 'repo-remove': if (el && el.dataset.url) addonBusyCall('repo-remove', { url: el.dataset.url }, at('removeRepo')); break;
+    case 'addon-repo-preview': {
+      const item = ADDON_REPO_ITEMS[parseInt(el && el.dataset.index, 10)]; if (!item) break;
+      ADDON_TAB = 'install'; ADDON_PREVIEW = null; renderKeep();
+      if (item.manifestUrl) addonBusyCall('preview', { url: item.manifestUrl }, at('validate'));
+      else if (item.packageUrl) addonBusyCall('package-preview', { url: item.packageUrl, sha256: item.sha256, version: item.version }, at('validate'));
+      break;
+    }
+    case 'addon-check-updates': addonBusyCall('updates', {}, at('checkUpdates')); break;
+    case 'addon-demo': addonBusyCall('demo', {}, at('addDemo')); break;
+    case 'addon-toggle': {
+      const id = el && el.dataset.addonid, enabled = !!(el && el.dataset.enabled !== '1');
+      if (!id) break;
+      if (!window.__RUIVO_ANDROID__) { toast(t('addonAndroidOnly')); break; }
+      const addon = ADDONS.find(a => a.id === id); if (addon) addon.enabled = enabled;
+      const q = new URLSearchParams({ requestId: 'addon-' + (++addonReqSeq) + '-' + Date.now(), id, value: enabled ? '1' : '0' });
+      window.location.href = 'ruivo-addon://enable?' + q.toString();
+      if (!enabled) { ADDON_CATALOGS.delete(id); ADDON_LOADING.delete(id); rebuild(); }
+      renderKeep();
+      break;
+    }
+    case 'addon-update': if (el && el.dataset.addonid) addonBusyCall('update', { id: el.dataset.addonid }, at('checkUpdates')); break;
+    case 'addon-refresh': if (el && el.dataset.addonid) { ADDON_LOADING.add(el.dataset.addonid); renderKeep(); addonNative('catalog', { id: el.dataset.addonid }); } break;
+    case 'addon-remove': if (el && el.dataset.addonid) addonNative('remove', { id: el.dataset.addonid }); break;
+    case 'more-live': case 'more-movies': case 'more-series': { const sc = act.slice(5); shown[sc] += 60; renderKeep(); break; }
+  }
+  if (playerOpen && uiMode === 'controls') setUi('controls');
+}
+
+/* ---------- configurações ---------- */
+function cycle(key, dir) {
+  const def = SETS.find(s => s.k === key); if (!def) return;
+  const i = def.opts.indexOf(S[key]); S[key] = def.opts[(i + dir + def.opts.length) % def.opts.length];
+  store.set('settings', S);
+  if (key === 'theme') applyTheme();
+  if (key === 'lang') document.documentElement.lang = S.lang === 'en' ? 'en' : 'pt-BR';
+  if (key === 'quality') applyQuality();
+  if (key === 'subs') applySubs();
+  if (key === 'hideDead') rebuild();
+  renderKeep();
+}
+function applyTheme() { const r = document.documentElement; if (S.theme === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', S.theme); }
+
+/* ---------- navegação espacial ---------- */
+const visible = el => el.getClientRects().length > 0;
+function navigate(dir) {
+  const scope = playerOpen ? player : $('#app');
+  const els = [...scope.querySelectorAll('[data-f]')].filter(visible), c0 = document.activeElement;
+  if (!els.length) return;
+  if (!els.includes(c0)) { focusEl(els.find(e => e.closest('#main')) || els[0]); return; }
+  const r = c0.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, horiz = dir === 'Left' || dir === 'Right';
+  const pick = strict => {
+    let best = null, bs = Infinity;
+    for (const el of els) {
+      if (el === c0) continue;
+      const q = el.getBoundingClientRect(), dx = q.left + q.width / 2 - cx, dy = q.top + q.height / 2 - cy; let prim, sec;
+      if (dir === 'Right') { if (dx <= 2) continue; prim = dx; sec = Math.abs(dy); }
+      else if (dir === 'Left') { if (dx >= -2) continue; prim = -dx; sec = Math.abs(dy); }
+      else if (dir === 'Down') { if (dy <= 2) continue; prim = dy; sec = Math.abs(dx); }
+      else { if (dy >= -2) continue; prim = -dy; sec = Math.abs(dx); }
+      if (strict && !(horiz ? (q.top < r.bottom && q.bottom > r.top) : (q.left < r.right && q.right > r.left))) continue;
+      const s = prim + sec * 3; if (s < bs) { bs = s; best = el; }
+    }
+    return best;
+  };
+  const tg = pick(true) || pick(false); if (tg) focusEl(tg);
+}
+
+/* ---------- teclado / controle remoto ---------- */
+let hold = null, held = false;
+const isBack = e => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'BrowserBack' || [4, 10009, 461, 27].includes(e.keyCode);
+const isChUp = e => e.key === 'ChannelUp' || e.key === 'PageUp' || e.keyCode === 427;
+const isChDown = e => e.key === 'ChannelDown' || e.key === 'PageDown' || e.keyCode === 428;
+const isFavKey = e => e.keyCode === 405 || e.key === 'y' || e.key === 'Y' || e.key === 'ContextMenu';
+const isEnter = e => e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23;
+const isPlayKey = e => ['MediaPlayPause', 'MediaPlay', 'MediaPause'].includes(e.key) || [415, 19, 179].includes(e.keyCode);
+function goBack() {
+  if (playerOpen) { closePlayer(); return true; }
+  if (view === 'import') { go('settings'); const r = $('[data-view="import"]'); if (r) r.focus({ preventScroll: true }); return true; }
+  if (view === 'show') { go('series'); return true; }
+  if (view !== 'home') { go('home'); const n = $('.nav.on'); if (n) n.focus({ preventScroll: true }); return true; }
+  return false;
+}
+function favTarget() { const a = document.activeElement; return (a && a.dataset && a.dataset.ch && !playerOpen) ? a : null; }
+function activate() {
+  const a = document.activeElement;
+  if (playerOpen) {
+    if (a && player.contains(a) && a.matches('[data-f]') && uiMode !== 'hidden') { a.click(); return; }
+    if (uiMode === 'hidden' || !STATE_UI[state]) { showControls(); return; }
+  }
+  if (a && a.matches && a.matches('[data-f]')) a.click();
+}
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key, tg0 = e.target;
+  if (tg0 && tg0.matches && tg0.matches('input,textarea')) {
+    if (isBack(e) && k !== 'Backspace') { e.preventDefault(); goBack(); return; }
+    if (k === 'Enter' && tg0.tagName === 'INPUT') { e.preventDefault(); if (tg0.id === 'plUrl') doAct('plimport'); else navigate('Down'); return; }
+    const atStart = tg0.selectionStart === 0, atEnd = tg0.selectionEnd === tg0.value.length;
+    if (k === 'ArrowUp' && (tg0.tagName === 'INPUT' || atStart)) { e.preventDefault(); navigate('Up'); return; }
+    if (k === 'ArrowDown' && (tg0.tagName === 'INPUT' || atEnd)) { e.preventDefault(); navigate('Down'); return; }
+    return;
+  }
+  if (/^[0-9]$/.test(k)) { e.preventDefault(); digit(k); return; }
+  if (isChUp(e)) { e.preventDefault(); zap(1); return; }
+  if (isChDown(e)) { e.preventDefault(); zap(-1); return; }
+  if (isBack(e)) { e.preventDefault(); goBack(); return; }
+  if (isFavKey(e)) { e.preventDefault(); if (playerOpen && cur) toggleFav(cur.id); else { const el = favTarget(); if (el) toggleFav(el.dataset.ch); } return; }
+  if (k === 'Delete' || e.keyCode === 46 || e.keyCode === 403) { e.preventDefault(); if (playerOpen && cur) askRemove(cur.id); else { const el = favTarget(); if (el) askRemove(el.dataset.ch); } return; }
+  if (k === 'MediaStop' || e.keyCode === 413) { if (playerOpen) closePlayer(); return; }
+  if (isPlayKey(e)) { if (playerOpen) { e.preventDefault(); togglePlay(); } return; }
+  if (k === 'm' || k === 'M') { if (playerOpen) toggleMute(); return; }
+  if (k === 'f' || k === 'F') { toggleFull(); return; }
+  if (isEnter(e)) {
+    e.preventDefault(); if (e.repeat) return;
+    held = false; clearTimeout(hold);
+    const el = favTarget();
+    if (el && (k === 'Enter' || e.keyCode === 13) && !el.dataset.series) hold = setTimeout(() => { held = true; hold = null; toggleFav(el.dataset.ch); }, 650);
+    return;
+  }
+  if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown') {
+    e.preventDefault(); const dir = k.slice(5);
+    if (playerOpen) {
+      if (uiMode === 'controls' || !(state === 'playing' || state === 'buffering' || state === 'loading')) { navigate(dir); if (uiMode === 'controls') setUi('controls'); return; }
+      if (dir === 'Up') zap(1); else if (dir === 'Down') zap(-1);
+      else if (isVod(cur)) seek(dir === 'Left' ? -10 : 10);
+      else if (dir === 'Left') setVol(vol - 0.05); else setVol(vol + 0.05);
+      return;
+    }
+    const a = document.activeElement;
+    if (view === 'settings' && a && a.dataset && a.dataset.set && (dir === 'Left' || dir === 'Right')) { cycle(a.dataset.set, dir === 'Right' ? 1 : -1); return; }
+    navigate(dir);
+  }
+});
+document.addEventListener('keyup', e => {
+  if (!isEnter(e)) return;
+  if (e.target && e.target.matches && e.target.matches('input,textarea')) return;
+  e.preventDefault(); clearTimeout(hold); hold = null;
+  if (held) { held = false; return; }
+  activate();
+});
+
+/* mouse / toque */
+document.addEventListener('click', e => {
+  const tg = e.target; if (!tg || !tg.closest) return;
+  if (playerOpen && tg.closest('#pReveal')) { showControls(); return; }
+  const del = tg.closest('[data-del]'); if (del) { e.stopPropagation(); askRemove(del.dataset.del, del); return; }
+  const star = tg.closest('[data-fav]'); if (star) { e.stopPropagation(); toggleFav(star.dataset.fav); return; }
+  const a = tg.closest('[data-act]'); if (a) { doAct(a.dataset.act, a); return; }
+  if (playerOpen && tg.closest('#pSeek') && isVod(cur) && isFinite(ytActive ? ytD : vid.duration)) { const r = $('#pSeek').getBoundingClientRect(); seekTo(clamp((e.clientX - r.left) / r.width, 0, 1) * (ytActive ? ytD : vid.duration)); return; }
+  const c = tg.closest('[data-ch]'); if (c && !playerOpen) { openPlayer(byId(c.dataset.ch)); return; }
+  const sr = tg.closest('[data-series]'); if (sr) { showId = sr.dataset.series; go('show'); const b = $('#heroBtn'); if (b) b.focus({ preventScroll: true }); return; }
+  const v = tg.closest('[data-view]'); if (v) { go(v.dataset.view); return; }
+  const ct = tg.closest('[data-cat]'); if (ct) { const i = ct.dataset.cat.indexOf('|'); setCat(ct.dataset.cat.slice(0, i), ct.dataset.cat.slice(i + 1)); return; }
+  const s = tg.closest('[data-set]'); if (s) { cycle(s.dataset.set, 1); return; }
+  if (playerOpen && !tg.closest('[data-f]')) { if (uiMode === 'controls') setUi('hidden'); else showControls(); }
+});
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'q') { query = e.target.value; clearTimeout(input_t); input_t = setTimeout(() => { const r = $('#qres'); if (r) r.innerHTML = searchResults(); }, 140); }
+  if (e.target && e.target.id === 'addonSearch') { ADDON_QUERY = e.target.value; clearTimeout(input_t); input_t = setTimeout(() => { if (view === 'addons') renderKeep(); }, 180); }
+});
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'addonCategory') { ADDON_CATEGORY = e.target.value || 'all'; renderKeep(); }
+});
+let input_t = 0;
+document.addEventListener('mousemove', () => { if (playerOpen && uiMode === 'hidden') setUi('banner'); });
+addEventListener('offline', () => { if (playerOpen) { stopStream(); setState('noconn'); } });
+addEventListener('online', () => { if (playerOpen && state === 'noconn' && cur) tune(cur); if (!ALL.length) reloadCatalog(); });
+setInterval(() => { tickClock(); if (playerOpen && cur && !isVod(cur)) updateInfo(); }, 15000);
+
+/* ponte para botões físicos do app Android */
+window.__tv = {
+  back() { return goBack(); }, chUp() { zap(1); }, chDown() { zap(-1); },
+  fav() { if (playerOpen && cur) toggleFav(cur.id); else { const el = favTarget(); if (el) toggleFav(el.dataset.ch); } },
+  remove() { if (playerOpen && cur) askRemove(cur.id); else { const el = favTarget(); if (el) askRemove(el.dataset.ch); } },
+  playPause() { if (playerOpen) togglePlay(); }
+};
+
+/* ---------- início ---------- */
+(async function init() {
+  document.documentElement.lang = S.lang === 'en' ? 'en' : 'pt-BR';
+  applyTheme(); render();
+  await loadCatalog(); render(); window.__booted = true;
+  const first = $('#heroBtn') || $('#main [data-f]') || $('.nav.on'); if (first) first.focus({ preventScroll: true });
+  if (S.autoUpdate && store.get('plurl', '')) setTimeout(() => refreshPlaylist(true), 1500);
+  if (S.autoplay) { const last = byId(store.get('last', '')); if (last) openPlayer(last); }
+})();
+})();
+</script>
