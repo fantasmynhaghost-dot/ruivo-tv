@@ -54,13 +54,23 @@ jobs:
       - name: Configurar build do Kodi
         run: |
           rm -rf $HOME/kodi-build && mkdir -p $HOME/kodi-build
-          cd $HOME/kodi && make -C tools/depends/target/cmakebuildsys BUILD_DIR=$HOME/kodi-build CMAKE_EXTRA_ARGUMENTS="-DAPP_PACKAGE=br.sintonia.tv"
+          cd $HOME/kodi
+          sed -i 's/^APP_PACKAGE .*/APP_PACKAGE br.sintonia.tv/' version.txt
+          grep -n '^APP_PACKAGE' version.txt
+          make -C tools/depends/target/cmakebuildsys BUILD_DIR=$HOME/kodi-build
       - name: Carimbo do build
         run: echo "run ${{ github.run_id }} / ${{ github.sha }}" > ruivo/app/src/main/assets/build.txt
       - name: Aplicar Ruivo TV
         run: python3 $GITHUB_WORKSPACE/ruivo/native-packaging/apply_ruivo.py $HOME/kodi-build $GITHUB_WORKSPACE/ruivo
       - name: Compilar Kodi e empacotar APK
         run: cd $HOME/kodi-build && make -j$(nproc) && make apk
+      - name: Verificar pacote nativo
+        run: |
+          LIB=$(find $HOME/kodi-build -name libkodi.so | head -1); echo "$LIB"
+          strings "$LIB" | grep -c "br.sintonia.tv" || true
+          strings "$LIB" | grep -m3 "org.xbmc.kodi" || echo "sem org.xbmc.kodi"
+          strings "$LIB" | grep -q "br.sintonia.tv" || { echo "ERRO: libkodi.so nao contem br.sintonia.tv"; exit 1; }
+          if strings "$LIB" | grep -qx "org.xbmc.kodi"; then echo "ERRO: libkodi.so ainda usa org.xbmc.kodi como pacote"; exit 1; fi
       - name: Localizar APK
         run: |
           APK=$(find $HOME/kodi-build -name "xbmc-debug.apk" | head -1); echo "$APK"
