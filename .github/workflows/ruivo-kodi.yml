@@ -1,0 +1,64 @@
+# Ruivo TV com runtime Kodi 21.3-Omega embutido (arm64-v8a) — APK único, applicationId br.sintonia.tv
+name: Ruivo TV + Kodi (arm64-v8a)
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      NDK_VER: "21.4.7075529"
+      KODI_TAG: "21.3-Omega"
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: ruivo }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - name: Dependências do host
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autopoint gettext libtool cmake ninja-build curl git gawk gperf nasm yasm zip unzip lzip zlib1g-dev libssl-dev libcurl4-openssl-dev default-jdk swig build-essential python3 flex bison
+          SDKM=$(ls $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | $SDKM --licenses >/dev/null || true
+          $SDKM "platforms;android-34" "build-tools;33.0.1" "ndk;$NDK_VER"
+          mkdir -p ~/.android && keytool -genkey -keystore ~/.android/debug.keystore -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keypass android -storepass android -keyalg RSA -keysize 2048 -validity 10000 || true
+      - name: Cache das dependências nativas
+        id: depcache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/kodi
+            ~/xbmc-depends
+            ~/xbmc-tarballs
+          key: kodi-depends-${{ env.KODI_TAG }}-arm64-v1
+      - name: Fonte do Kodi
+        run: '[ -d "$HOME/kodi/.git" ] || git clone --depth 1 --branch "$KODI_TAG" https://github.com/xbmc/xbmc "$HOME/kodi"'
+      - name: Dependências nativas
+        run: |
+          cd $HOME/kodi/tools/depends && ./bootstrap
+          ./configure --with-tarballs=$HOME/xbmc-tarballs --host=aarch64-linux-android \
+            --with-sdk-path=$ANDROID_HOME --with-ndk-path=$ANDROID_HOME/ndk/$NDK_VER --prefix=$HOME/xbmc-depends
+          make -j$(nproc)
+      - name: Salvar cache das dependências
+        if: always() && steps.depcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/kodi
+            ~/xbmc-depends
+            ~/xbmc-tarballs
+          key: kodi-depends-${{ env.KODI_TAG }}-arm64-v1
+      - name: Configurar build do Kodi
+        run: |
+          rm -rf $HOME/kodi-build && mkdir -p $HOME/kodi-build
+          cd $HOME/kodi && make -C tools/depends/target/cmakebuildsys BUILD_DIR=$HOME/kodi-build
+      - name: Aplicar Ruivo TV
+        run: python3 $GITHUB_WORKSPACE/ruivo/native-packaging/apply_ruivo.py $HOME/kodi-build $GITHUB_WORKSPACE/ruivo
+      - name: Compilar Kodi e empacotar APK
+        run: cd $HOME/kodi-build && make -j$(nproc) && make apk
+      - name: Localizar APK
+        run: |
+          APK=$(find $HOME/kodi-build -name "xbmc-debug.apk" | head -1); echo "$APK"
+          mkdir -p out && cp "$APK" out/ruivo-tv-kodi-arm64-debug.apk
+          unzip -l out/*.apk | grep -E "lib/arm64-v8a/libkodi.so|assets/index.html|AndroidManifest" || true
+      - uses: actions/upload-artifact@v4
+        with: { name: ruivo-tv-kodi-arm64, path: out/*.apk }

@@ -1,5 +1,7 @@
 package br.sintonia.tv.playback;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public final class PlaybackSnapshot {
@@ -9,8 +11,8 @@ public final class PlaybackSnapshot {
     public PlaybackSnapshot(String requestId, PlaybackState state, PlaybackError error, long positionMs, long durationMs,
                             List<String> audioTracks, List<String> subtitleTracks, int selectedAudio, int selectedSubtitle) {
         this.requestId = requestId; this.state = state; this.error = error; this.positionMs = positionMs; this.durationMs = durationMs;
-        this.audioTracks = List.copyOf(audioTracks); this.subtitleTracks = List.copyOf(subtitleTracks);
+        this.audioTracks = Collections.unmodifiableList(new ArrayList<>(audioTracks)); this.subtitleTracks = Collections.unmodifiableList(new ArrayList<>(subtitleTracks));
         this.selectedAudio = selectedAudio; this.selectedSubtitle = selectedSubtitle;
     }
-    public static PlaybackSnapshot idle() { return new PlaybackSnapshot("", PlaybackState.IDLE, null, 0, 0, List.of(), List.of(), -1, -1); }
+    public static PlaybackSnapshot idle() { return new PlaybackSnapshot("", PlaybackState.IDLE, null, 0, 0, Collections.<String>emptyList(), Collections.<String>emptyList(), -1, -1); }
 }

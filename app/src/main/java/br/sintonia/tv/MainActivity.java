@@ -1,6 +1,9 @@
 package br.sintonia.tv;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.webkit.JavascriptInterface;
+import br.sintonia.tv.playback.PlaybackRequest;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.KeyEvent;
@@ -27,6 +30,26 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private WebView web;
     private AddonManager addons;
+    private static final String KODI_ACTIVITY = "org.xbmc.kodi.Splash";
+
+    /** Ponte restrita: só entrega URIs validadas ao runtime Kodi embutido neste mesmo APK (intent explícito, sem rede). */
+    private final class RuivoNative {
+        @JavascriptInterface public boolean available() {
+            try { Class.forName(KODI_ACTIVITY); return true; } catch (ClassNotFoundException e) { return false; }
+        }
+        @JavascriptInterface public boolean play(String url, String title) {
+            try {
+                if (!available()) return false;
+                PlaybackRequest r = PlaybackRequest.builderAllowCleartext(java.util.UUID.randomUUID().toString(), url)
+                        .title(title == null ? "" : title).build();
+                final Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setClassName(MainActivity.this, KODI_ACTIVITY);
+                i.setDataAndType(Uri.parse(r.uri.toString()), "video/*");
+                runOnUiThread(() -> startActivity(i));
+                return true;
+            } catch (Exception e) { return false; }
+        }
+    }
 
     private static String mime(String path) {
         if (path.endsWith(".html")) return "text/html";
@@ -151,6 +174,7 @@ public class MainActivity extends Activity {
             }
 
         });
+        web.addJavascriptInterface(new RuivoNative(), "RuivoNative");
         web.loadUrl("https://" + HOST + "/index.html");
         web.requestFocus();
     }

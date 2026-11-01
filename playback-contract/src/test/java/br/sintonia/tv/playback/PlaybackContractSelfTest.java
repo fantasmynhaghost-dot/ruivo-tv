@@ -27,6 +27,8 @@ public final class PlaybackContractSelfTest {
         check("header fora da lista", rejects(() -> PlaybackRequest.builder("r", "https://x.test/v").header("X-Evil", "1")));
         check("CRLF em header", rejects(() -> PlaybackRequest.builder("r", "https://x.test/v").header("Referer", "a\r\nb: c")));
         check("posição negativa", rejects(() -> PlaybackRequest.builder("r", "https://x.test/v").startPositionMs(-1)));
+        check("http com opt-in", PlaybackRequest.builderAllowCleartext("r", "http://x.test/v.m3u8").build().uri.getScheme().equals("http"));
+        check("opt-in não libera javascript", rejects(() -> PlaybackRequest.builderAllowCleartext("r", "javascript:alert(1)")));
         PlaybackRequest sec = PlaybackRequest.builder("r2", "https://x.test/v?token=SEGREDO").header("Authorization", "Bearer SEGREDO").build();
         check("toString sem segredos", !sec.toString().contains("SEGREDO"));
 

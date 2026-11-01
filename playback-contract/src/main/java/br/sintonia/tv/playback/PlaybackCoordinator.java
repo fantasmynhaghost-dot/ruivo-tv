@@ -1,5 +1,6 @@
 package br.sintonia.tv.playback;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -64,8 +65,8 @@ public final class PlaybackCoordinator implements KodiRuntimeController.EventSin
         }
     }
     private void set(String id, PlaybackState s, PlaybackError e, long p, long d) {
-        snap = new PlaybackSnapshot(id, s, e, p, d, s == PlaybackState.PREPARING ? List.of() : snap.audioTracks,
-                s == PlaybackState.PREPARING ? List.of() : snap.subtitleTracks, snap.selectedAudio, snap.selectedSubtitle);
+        snap = new PlaybackSnapshot(id, s, e, p, d, s == PlaybackState.PREPARING ? Collections.<String>emptyList() : snap.audioTracks,
+                s == PlaybackState.PREPARING ? Collections.<String>emptyList() : snap.subtitleTracks, snap.selectedAudio, snap.selectedSubtitle);
         notifyListener();
     }
     private void notifyListener() { if (listener != null) listener.onSnapshot(snap); }
