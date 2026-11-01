@@ -18,6 +18,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import br.sintonia.tv.addons.AddonManager;
+import br.sintonia.tv.addons.KodiAddonInstaller;
+import java.io.File;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -33,7 +35,51 @@ public class MainActivity extends Activity {
     private static final String KODI_ACTIVITY = "org.xbmc.kodi.Splash";
 
     /** Ponte restrita: só entrega URIs validadas ao runtime Kodi embutido neste mesmo APK (intent explícito, sem rede). */
+    private volatile boolean kodiStarted;
+    private static final java.util.regex.Pattern PLUGIN_QUERY = java.util.regex.Pattern.compile("^[A-Za-z0-9=&_.%-]{0,512}$");
+    private File kodiAddonsDir() { File b = getExternalFilesDir(null); return b == null ? null : new File(b, ".kodi/addons"); }
+
     private final class RuivoNative {
+        /** "ok" | "restart" (Kodi já iniciou neste processo; reabrir o app para ele enxergar o addon) | "error:motivo". */
+        @JavascriptInterface public String installDemoAddon() {
+            try {
+                File dir = kodiAddonsDir();
+                if (dir == null) return "error:armazenamento indisponível";
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                try (InputStream in = getAssets().open("kodi-addons/plugin.video.ruivo.demo.zip")) {
+                    byte[] buf = new byte[8192]; int n; while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                }
+                KodiAddonInstaller.Result r = KodiAddonInstaller.install(dir, out.toByteArray(), true, false);
+                if (!r.ok) return "error:" + r.message;
+                return kodiStarted ? "restart" : "ok";
+            } catch (Exception e) { return "error:" + e.getClass().getSimpleName(); }
+        }
+        /** Pede ao Kodi para executar plugin://id/?query (o addon roda no runtime Kodi e resolve o vídeo). */
+        @JavascriptInterface public boolean playAddon(String addonId, String query) {
+            try {
+                File dir = kodiAddonsDir();
+                if (!available() || dir == null || !KodiAddonInstaller.isInstalled(dir, addonId)) return false;
+                if (query == null || !PLUGIN_QUERY.matcher(query).matches()) return false;
+                final Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setClassName(MainActivity.this, KODI_ACTIVITY);
+                i.setData(Uri.parse("plugin://" + addonId + "/?" + query));
+                kodiStarted = true;
+                runOnUiThread(() -> startActivity(i));
+                return true;
+            } catch (Exception e) { return false; }
+        }
+        @JavascriptInterface public void restartApp() {
+            runOnUiThread(() -> {
+                Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                if (launch == null) return;
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                android.app.PendingIntent pi = android.app.PendingIntent.getActivity(MainActivity.this, 0, launch,
+                        android.app.PendingIntent.FLAG_CANCEL_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+                ((android.app.AlarmManager) getSystemService(ALARM_SERVICE)).set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 400, pi);
+                finishAffinity();
+                android.os.Process.killProcess(android.os.Process.myPid());
+            });
+        }
         @JavascriptInterface public boolean available() {
             try { Class.forName(KODI_ACTIVITY); return true; } catch (ClassNotFoundException e) { return false; }
         }
@@ -45,6 +91,7 @@ public class MainActivity extends Activity {
                 final Intent i = new Intent(Intent.ACTION_VIEW);
                 i.setClassName(MainActivity.this, KODI_ACTIVITY);
                 i.setDataAndType(Uri.parse(r.uri.toString()), "video/*");
+                kodiStarted = true;
                 runOnUiThread(() -> startActivity(i));
                 return true;
             } catch (Exception e) { return false; }
