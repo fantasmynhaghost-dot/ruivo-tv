@@ -15,8 +15,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake autopoint gettext libtool cmake ninja-build curl git gawk gperf nasm yasm zip unzip lzip zlib1g-dev libssl-dev libcurl4-openssl-dev default-jdk swig build-essential python3 flex bison
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;33.0.1" "ndk;$NDK_VER"
+          SDKM=$(ls $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | $SDKM --licenses >/dev/null || true
+          $SDKM "platforms;android-34" "build-tools;33.0.1" "ndk;$NDK_VER"
           mkdir -p ~/.android && keytool -genkey -keystore ~/.android/debug.keystore -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keypass android -storepass android -keyalg RSA -keysize 2048 -validity 10000 || true
       - name: Fonte do Kodi
         run: git clone --depth 1 --branch "$KODI_TAG" https://github.com/xbmc/xbmc "$HOME/kodi"
