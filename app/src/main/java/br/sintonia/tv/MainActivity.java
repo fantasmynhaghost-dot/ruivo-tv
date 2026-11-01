@@ -68,6 +68,23 @@ public class MainActivity extends Activity {
                 return true;
             } catch (Exception e) { return false; }
         }
+        /** Últimas linhas do log do próprio Kodi (arquivo privado do app), para diagnóstico na tela. */
+        @JavascriptInterface public String kodiLogTail() {
+            try {
+                File b = getExternalFilesDir(null);
+                if (b == null) return "(armazenamento indisponível)";
+                File f = new File(b, ".kodi/temp/kodi.log");
+                if (!f.isFile()) f = new File(b, ".kodi/temp/kodi.old.log");
+                if (!f.isFile()) return "(sem log do Kodi ainda)";
+                long len = f.length(), start = Math.max(0, len - 9000);
+                try (java.io.RandomAccessFile r = new java.io.RandomAccessFile(f, "r")) {
+                    r.seek(start); byte[] buf = new byte[(int) (len - start)]; r.readFully(buf);
+                    String t = new String(buf, "UTF-8");
+                    int nl = t.indexOf('\n'); if (start > 0 && nl >= 0) t = t.substring(nl + 1);
+                    return t;
+                }
+            } catch (Exception e) { return "(erro ao ler o log: " + e.getClass().getSimpleName() + ")"; }
+        }
         @JavascriptInterface public void restartApp() {
             runOnUiThread(() -> {
                 Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
