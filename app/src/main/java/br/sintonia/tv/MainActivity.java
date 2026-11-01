@@ -70,6 +70,9 @@ public class MainActivity extends Activity {
         }
         /** Últimas linhas do log do próprio Kodi (arquivo privado do app), para diagnóstico na tela. */
         @JavascriptInterface public String kodiLogTail() {
+            return exitReport() + "\n--- kodi.log ---\n" + kodiLogOnly();
+        }
+        private String kodiLogOnly() {
             try {
                 File b = getExternalFilesDir(null);
                 if (b == null) return "(armazenamento indisponível)";
@@ -189,9 +192,67 @@ public class MainActivity extends Activity {
         }
     }
 
+    private File crashFile() { return new File(getFilesDir(), "last_crash.txt"); }
+
+    private void installCrashRecorder() {
+        final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        final File out = crashFile();
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try (java.io.PrintWriter w = new java.io.PrintWriter(out, "UTF-8")) {
+                w.println("thread: " + t.getName() + " @ " + new java.util.Date());
+                e.printStackTrace(w);
+            } catch (Exception ignored) { }
+            if (previous != null) previous.uncaughtException(t, e);
+        });
+    }
+
+    private String buildStamp() {
+        try (InputStream in = getAssets().open("build.txt")) {
+            java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[256]; int n; while ((n = in.read(buf)) != -1) o.write(buf, 0, n);
+            return o.toString("UTF-8").trim();
+        } catch (Exception e) { return "(sem build.txt)"; }
+    }
+
+    /** Motivo das últimas saídas do processo (Android 11+), incluindo texto legível do rastro de crash nativo. */
+    private String exitReport() {
+        StringBuilder sb = new StringBuilder("build: " + buildStamp() + "\n");
+        File c = crashFile();
+        if (c.isFile()) {
+            try { sb.append("--- última exceção Java ---\n").append(new String(java.nio.file.Files.readAllBytes(c.toPath()), "UTF-8")).append('\n'); }
+            catch (Exception ignored) { }
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            try {
+                android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+                int shown = 0;
+                for (android.app.ApplicationExitInfo e : am.getHistoricalProcessExitReasons(getPackageName(), 0, 4)) {
+                    sb.append("--- saída ").append(++shown).append(": reason=").append(e.getReason()).append(" status=").append(e.getStatus())
+                      .append(" ").append(new java.util.Date(e.getTimestamp())).append(" desc=").append(e.getDescription()).append('\n');
+                    if (e.getReason() == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE && shown <= 2) {
+                        try (InputStream in = e.getTraceInputStream()) {
+                            if (in != null) {
+                                byte[] data = new byte[200 * 1024]; int len = 0, n;
+                                while (len < data.length && (n = in.read(data, len, data.length - len)) > 0) len += n;
+                                StringBuilder run = new StringBuilder(); int kept = 0;
+                                for (int i = 0; i < len && kept < 5000; i++) {
+                                    char ch = (char) (data[i] & 0xff);
+                                    if (ch >= 32 && ch < 127) run.append(ch);
+                                    else { if (run.length() >= 6) { sb.append(run).append('\n'); kept += run.length(); } run.setLength(0); }
+                                }
+                            }
+                        } catch (Exception ignored) { }
+                    }
+                }
+            } catch (Exception e) { sb.append("(sem histórico de saídas: ").append(e.getClass().getSimpleName()).append(")\n"); }
+        }
+        return sb.toString();
+    }
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        installCrashRecorder();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         WebView.setWebContentsDebuggingEnabled(false);
         web = new WebView(this);

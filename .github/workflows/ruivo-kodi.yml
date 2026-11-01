@@ -55,6 +55,8 @@ jobs:
         run: |
           rm -rf $HOME/kodi-build && mkdir -p $HOME/kodi-build
           cd $HOME/kodi && make -C tools/depends/target/cmakebuildsys BUILD_DIR=$HOME/kodi-build CMAKE_EXTRA_ARGUMENTS="-DAPP_PACKAGE=br.sintonia.tv"
+      - name: Carimbo do build
+        run: echo "run ${{ github.run_id }} / ${{ github.sha }}" > ruivo/app/src/main/assets/build.txt
       - name: Aplicar Ruivo TV
         run: python3 $GITHUB_WORKSPACE/ruivo/native-packaging/apply_ruivo.py $HOME/kodi-build $GITHUB_WORKSPACE/ruivo
       - name: Compilar Kodi e empacotar APK
