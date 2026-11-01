@@ -32,7 +32,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private WebView web;
     private AddonManager addons;
-    private static final String KODI_ACTIVITY = "org.xbmc.kodi.Splash";
+    private static final String KODI_ACTIVITY = "br.sintonia.tv.Splash";
 
     /** Ponte restrita: só entrega URIs validadas ao runtime Kodi embutido neste mesmo APK (intent explícito, sem rede). */
     private volatile boolean kodiStarted;
