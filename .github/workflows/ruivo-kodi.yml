@@ -1,6 +1,10 @@
 # Ruivo TV com runtime Kodi 21.3-Omega embutido (arm64-v8a) — APK único, applicationId br.sintonia.tv
 name: Ruivo TV + Kodi (arm64-v8a)
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['app/**', 'playback-contract/**', 'native-packaging/**', 'kodi-addons/**', '.github/workflows/ruivo-kodi.yml']
 jobs:
   build:
     runs-on: ubuntu-22.04
