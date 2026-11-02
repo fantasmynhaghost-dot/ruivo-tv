@@ -49,6 +49,15 @@ public class MainActivity extends Activity {
                 try (InputStream in = getAssets().open("kodi-addons/plugin.video.ruivo.demo.zip")) {
                     byte[] buf = new byte[8192]; int n; while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
                 }
+                try {
+                    File adv = new File(getExternalFilesDir(null), ".kodi/userdata/advancedsettings.xml");
+                    if (!adv.exists()) {
+                        adv.getParentFile().mkdirs();
+                        try (java.io.FileOutputStream fo = new java.io.FileOutputStream(adv)) {
+                            fo.write("<advancedsettings><loglevel>1</loglevel></advancedsettings>".getBytes("UTF-8"));
+                        }
+                    }
+                } catch (Exception ignored) { }
                 KodiAddonInstaller.Result r = KodiAddonInstaller.install(dir, out.toByteArray(), true, false);
                 if (!r.ok) return "error:" + r.message;
                 return kodiStarted ? "restart" : "ok";
@@ -70,7 +79,7 @@ public class MainActivity extends Activity {
         }
         /** Últimas linhas do log do próprio Kodi (arquivo privado do app), para diagnóstico na tela. */
         @JavascriptInterface public String kodiLogTail() {
-            return exitReport() + "\n--- kodi.log ---\n" + kodiLogOnly();
+            return exitReport() + "\n" + netReport() + "\n--- kodi.log ---\n" + kodiLogOnly();
         }
         private String kodiLogOnly() {
             try {
@@ -79,14 +88,47 @@ public class MainActivity extends Activity {
                 File f = new File(b, ".kodi/temp/kodi.log");
                 if (!f.isFile()) f = new File(b, ".kodi/temp/kodi.old.log");
                 if (!f.isFile()) return "(sem log do Kodi ainda)";
-                long len = f.length(), start = Math.max(0, len - 9000);
+                long len = f.length(), start = Math.max(0, len - 600000);
+                String t;
                 try (java.io.RandomAccessFile r = new java.io.RandomAccessFile(f, "r")) {
-                    r.seek(start); byte[] buf = new byte[(int) (len - start)]; r.readFully(buf);
-                    String t = new String(buf, "UTF-8");
-                    int nl = t.indexOf('\n'); if (start > 0 && nl >= 0) t = t.substring(nl + 1);
-                    return t;
+                    r.seek(start); byte[] buf = new byte[(int) (len - start)]; r.readFully(buf); t = new String(buf, "UTF-8");
                 }
+                java.util.List<String> keep = new java.util.ArrayList<>(), interest = new java.util.ArrayList<>();
+                java.util.regex.Pattern hot = java.util.regex.Pattern.compile("(?i)ruivo|plugin\\.|python|addon|playmedia|intent|targetfile|pluginDirectory|playfile|openfile|resolv");
+                int resolveErrors = 0;
+                for (String line : t.split("\n")) {
+                    if (line.contains("CCurlFile::") || line.contains("FillBuffer")) { if (line.contains("resolve")) resolveErrors++; continue; }
+                    if (line.trim().isEmpty()) continue;
+                    keep.add(line);
+                    if (hot.matcher(line).find()) interest.add(line);
+                }
+                StringBuilder sb = new StringBuilder("(erros de DNS do Kodi no log: " + resolveErrors + ")\n--- linhas de interesse ---\n");
+                for (int i = Math.max(0, interest.size() - 70); i < interest.size(); i++) sb.append(interest.get(i)).append('\n');
+                sb.append("--- últimas linhas (sem ruído de rede) ---\n");
+                for (int i = Math.max(0, keep.size() - 60); i < keep.size(); i++) sb.append(keep.get(i)).append('\n');
+                return sb.toString();
             } catch (Exception e) { return "(erro ao ler o log: " + e.getClass().getSimpleName() + ")"; }
+        }
+        /** Teste de DNS/HTTPS feito pelo Java, no mesmo processo e UID do Kodi. */
+        private String netReport() {
+            StringBuilder sb = new StringBuilder("--- rede (Java) ---\n");
+            for (String h : new String[]{"mirrors.kodi.tv", "commondatastorage.googleapis.com"}) {
+                long t0 = System.currentTimeMillis();
+                try { sb.append(h).append(" -> ").append(java.net.InetAddress.getByName(h).getHostAddress()); }
+                catch (Exception e) { sb.append(h).append(" -> FALHOU ").append(e.getClass().getSimpleName()); }
+                sb.append(" (").append(System.currentTimeMillis() - t0).append(" ms)\n");
+            }
+            try {
+                android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+                android.net.Network n = cm.getActiveNetwork();
+                android.net.LinkProperties lp = n == null ? null : cm.getLinkProperties(n);
+                android.net.NetworkCapabilities nc = n == null ? null : cm.getNetworkCapabilities(n);
+                sb.append("rede ativa: ").append(n != null).append(" wifi=").append(nc != null && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI))
+                  .append(" cell=").append(nc != null && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR))
+                  .append(" vpn=").append(nc != null && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)).append('\n');
+                if (lp != null) sb.append("dns: ").append(lp.getDnsServers()).append(" privado=").append(android.os.Build.VERSION.SDK_INT >= 28 && lp.isPrivateDnsActive()).append('\n');
+            } catch (Exception e) { sb.append("(sem info de rede: ").append(e.getClass().getSimpleName()).append(")\n"); }
+            return sb.toString();
         }
         @JavascriptInterface public void restartApp() {
             runOnUiThread(() -> {
