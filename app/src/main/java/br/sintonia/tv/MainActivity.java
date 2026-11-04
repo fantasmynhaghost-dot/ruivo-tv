@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private WebView web;
     private AddonManager addons;
+    private static final java.util.Set<String> BUNDLED_ADDONS = new java.util.HashSet<>(java.util.Arrays.asList("plugin.video.ruivo.demo"));
     private static final String KODI_ACTIVITY = "br.sintonia.tv.Splash";
 
     /** Ponte restrita: só entrega URIs validadas ao runtime Kodi embutido neste mesmo APK (intent explícito, sem rede). */
@@ -40,15 +41,10 @@ public class MainActivity extends Activity {
     private File kodiAddonsDir() { File b = getExternalFilesDir(null); return b == null ? null : new File(b, ".kodi/addons"); }
 
     private final class RuivoNative {
-        /** "ok" | "restart" (Kodi já iniciou neste processo; reabrir o app para ele enxergar o addon) | "error:motivo". */
+        /** O addon de exemplo vem embutido no APK (addon opcional do Kodi, habilitado na 1ª varredura). Apenas liga o log debug do Kodi. */
         @JavascriptInterface public String installDemoAddon() {
             try {
-                File dir = kodiAddonsDir();
-                if (dir == null) return "error:armazenamento indisponível";
-                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-                try (InputStream in = getAssets().open("kodi-addons/plugin.video.ruivo.demo.zip")) {
-                    byte[] buf = new byte[8192]; int n; while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
-                }
+                if (!available()) return "error:Kodi não está embutido neste APK";
                 try {
                     File adv = new File(getExternalFilesDir(null), ".kodi/userdata/advancedsettings.xml");
                     if (!adv.exists()) {
@@ -58,16 +54,15 @@ public class MainActivity extends Activity {
                         }
                     }
                 } catch (Exception ignored) { }
-                KodiAddonInstaller.Result r = KodiAddonInstaller.install(dir, out.toByteArray(), true, false);
-                if (!r.ok) return "error:" + r.message;
-                return kodiStarted ? "restart" : "ok";
+                return "ok";
             } catch (Exception e) { return "error:" + e.getClass().getSimpleName(); }
         }
         /** Pede ao Kodi para executar plugin://id/?query (o addon roda no runtime Kodi e resolve o vídeo). */
         @JavascriptInterface public boolean playAddon(String addonId, String query) {
             try {
                 File dir = kodiAddonsDir();
-                if (!available() || dir == null || !KodiAddonInstaller.isInstalled(dir, addonId)) return false;
+                boolean bundled = BUNDLED_ADDONS.contains(addonId);
+                if (!available() || (!bundled && (dir == null || !KodiAddonInstaller.isInstalled(dir, addonId)))) return false;
                 if (query == null || !PLUGIN_QUERY.matcher(query).matches()) return false;
                 final Intent i = new Intent(Intent.ACTION_VIEW);
                 i.setClassName(MainActivity.this, KODI_ACTIVITY);
@@ -94,7 +89,7 @@ public class MainActivity extends Activity {
                     r.seek(start); byte[] buf = new byte[(int) (len - start)]; r.readFully(buf); t = new String(buf, "UTF-8");
                 }
                 java.util.List<String> keep = new java.util.ArrayList<>(), interest = new java.util.ArrayList<>();
-                java.util.regex.Pattern hot = java.util.regex.Pattern.compile("(?i)ruivo|plugin\\.|python|addon|playmedia|intent|targetfile|pluginDirectory|playfile|openfile|resolv");
+                java.util.regex.Pattern hot = java.util.regex.Pattern.compile("(?i)ruivo|plugin\\.|python|addon|enabled|disabled|playmedia|intent|targetfile|pluginDirectory|playfile|openfile|resolv");
                 int resolveErrors = 0;
                 for (String line : t.split("\n")) {
                     if (line.contains("CCurlFile::") || line.contains("FillBuffer")) { if (line.contains("resolve")) resolveErrors++; continue; }

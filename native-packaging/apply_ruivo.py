@@ -23,6 +23,9 @@ shutil.copytree(os.path.join(app, "java"), os.path.join(work, "java"), dirs_exis
 shutil.copytree(os.path.join(repo, "playback-contract/src/main/java"), os.path.join(work, "java"), dirs_exist_ok=True)
 shutil.copytree(os.path.join(app, "assets"), os.path.join(work, "assets"), dirs_exist_ok=True)
 shutil.copytree(os.path.join(app, "res"), os.path.join(work, "res"), dirs_exist_ok=True)
+BUNDLED = "plugin.video.ruivo.demo"
+shutil.copytree(os.path.join(repo, "kodi-addons", BUNDLED), os.path.join(work, "assets/addons", BUNDLED), dirs_exist_ok=True)
+must(os.path.exists(os.path.join(work, "assets/addons", BUNDLED, "addon.xml")), "addon embutido ausente")
 must(os.path.exists(os.path.join(work, "java/br/sintonia/tv/MainActivity.java")), "MainActivity ausente")
 must(os.path.exists(os.path.join(work, "java/br/sintonia/tv/playback/PlaybackCoordinator.java")), "contrato ausente")
 
@@ -71,6 +74,8 @@ kp = os.path.join(pk, "Makefile")
 k = read(kp)
 anchor = "\t@cp -R xbmc/src/* xbmc/java/$(APP_PACKAGE_DIR)/\n"
 must(anchor in k, "passo 'java' do Makefile mudou")
-add = ("\tcp -R %s/java/. xbmc/java/\n\tmkdir -p xbmc/assets && cp -R %s/assets/. xbmc/assets/\n\tcp -R %s/res/. xbmc/res/\n") % (work, work, work)
+manifest_script = os.path.join(repo, "native-packaging/add_optional_addon.py")
+add = ("\tcp -R %s/java/. xbmc/java/\n\tmkdir -p xbmc/assets && cp -R %s/assets/. xbmc/assets/\n\tcp -R %s/res/. xbmc/res/\n"
+       "\tpython3 %s xbmc/assets/system/addon-manifest.xml %s\n") % (work, work, work, manifest_script, BUNDLED)
 write(kp, k.replace(anchor, anchor + add, 1))
 print("apply_ruivo: ok")
